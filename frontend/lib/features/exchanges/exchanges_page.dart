@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/router.dart';
 import '../../app/theme.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/sharp_network_image.dart';
 import '../../shared/widgets/skeleton.dart';
 import 'exchanges_provider.dart';
 
@@ -27,6 +29,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(exchangesProvider);
     final notifier = ref.read(exchangesProvider.notifier);
 
@@ -34,7 +37,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     if (state.isLoading && !state.hasLoadedOnce) {
       return Scaffold(
         backgroundColor: AppTheme.background,
-        appBar: _buildAppBar(),
+        appBar: _buildAppBar(l10n),
         body: const SafeArea(child: ExchangesSkeleton()),
       );
     }
@@ -43,7 +46,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     if (state.error != null && state.exchanges.isEmpty) {
       return Scaffold(
         backgroundColor: AppTheme.background,
-        appBar: _buildAppBar(),
+        appBar: _buildAppBar(l10n),
         body: SafeArea(
           child: Center(
             child: ErrorStateView(
@@ -57,7 +60,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(l10n),
       body: RefreshIndicator(
               color: AppTheme.primaryContainer,
               backgroundColor: AppTheme.surface,
@@ -71,13 +74,13 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: _buildSearchBar(notifier),
+                      child: _buildSearchBar(l10n, notifier),
                     ),
                   ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _buildFilterChips(state, notifier),
+                      child: _buildFilterChips(l10n, state, notifier),
                     ),
                   ),
                   if (state.activeConnectedExchanges.isNotEmpty) ...[
@@ -85,7 +88,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                         child: Text(
-                          'Connected (${state.activeConnectedExchanges.length})',
+                          '${l10n.get('exchanges_connected')} (${state.activeConnectedExchanges.length})',
                           style: GoogleFonts.spaceGrotesk(
                             color: AppTheme.textOnSurface,
                             fontSize: 18,
@@ -100,7 +103,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                           final connected =
                               state.activeConnectedExchanges[index];
                           return _buildConnectedExchangeCard(
-                              connected, notifier);
+                              l10n, connected, notifier);
                         },
                         childCount: state.activeConnectedExchanges.length,
                       ),
@@ -110,7 +113,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                       child: Text(
-                        'Available Exchanges',
+                        l10n.get('exchanges_available'),
                         style: GoogleFonts.spaceGrotesk(
                           color: AppTheme.textOnSurface,
                           fontSize: 18,
@@ -125,13 +128,13 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                       child: EmptyState(
                         icon: Icons.search_off,
                         title: state.searchQuery.isNotEmpty
-                            ? 'No exchanges found'
-                            : 'No exchanges available',
+                            ? l10n.get('no_exchanges_found')
+                            : l10n.get('no_exchanges_available'),
                         message: state.searchQuery.isNotEmpty
-                            ? 'Try a different search term or clear filters.'
-                            : 'Pull down to refresh and try again.',
+                            ? l10n.get('try_different_search')
+                            : l10n.get('pull_to_refresh'),
                         actionLabel: state.searchQuery.isNotEmpty
-                            ? 'Clear search'
+                            ? l10n.get('clear_search')
                             : null,
                         onAction: state.searchQuery.isNotEmpty
                             ? () {
@@ -147,7 +150,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                         (context, index) {
                           final exchange = state.filteredExchanges[index];
                           final isConnected = state.isConnected(exchange.id);
-                          return _buildExchangeCard(exchange, isConnected);
+                          return _buildExchangeCard(l10n, exchange, isConnected);
                         },
                         childCount: state.filteredExchanges.length,
                       ),
@@ -159,12 +162,12 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(AppLocalizations l10n) {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       title: Text(
-        'Connect Exchanges',
+        l10n.get('exchanges_title'),
         style: GoogleFonts.spaceGrotesk(
           color: AppTheme.textOnSurface,
           fontWeight: FontWeight.bold,
@@ -173,13 +176,13 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     );
   }
 
-  Widget _buildSearchBar(ExchangesNotifier notifier) {
+  Widget _buildSearchBar(AppLocalizations l10n, ExchangesNotifier notifier) {
     return TextField(
       controller: _searchController,
       onChanged: notifier.setSearchQuery,
       style: const TextStyle(color: AppTheme.textOnSurface),
       decoration: InputDecoration(
-        hintText: 'Search exchanges...',
+        hintText: l10n.get('search_exchanges'),
         hintStyle: const TextStyle(color: AppTheme.textSecondary),
         prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary),
         filled: true,
@@ -192,9 +195,9 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     );
   }
 
-  Widget _buildFilterChips(ExchangesState state, ExchangesNotifier notifier) {
+  Widget _buildFilterChips(AppLocalizations l10n, ExchangesState state, ExchangesNotifier notifier) {
     final filters = ['all', 'exchanges', 'wallets'];
-    final labels = {'all': 'All', 'exchanges': 'Exchanges', 'wallets': 'Wallets'};
+    final labels = {'all': l10n.get('all'), 'exchanges': l10n.get('exchanges'), 'wallets': l10n.get('wallets')};
 
     return Row(
       children: filters.map((filter) {
@@ -218,7 +221,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
   }
 
   Widget _buildConnectedExchangeCard(
-      ConnectedExchange connected, ExchangesNotifier notifier) {
+      AppLocalizations l10n, ConnectedExchange connected, ExchangesNotifier notifier) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Container(
@@ -230,17 +233,10 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
         child: ListTile(
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: CircleAvatar(
-            backgroundColor: AppTheme.accentCyan.withAlpha(51),
-            child: Text(
-              connected.exchangeName.isNotEmpty
-                  ? connected.exchangeName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                color: AppTheme.accentCyan,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          leading: _buildExchangeLogo(
+            connected.logoUrl,
+            connected.exchangeName,
+            _exchangeColorMap[connected.exchangeName.toLowerCase()],
           ),
           title: Text(
             connected.label,
@@ -250,7 +246,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
             ),
           ),
           subtitle: Text(
-            connected.syncStatus == 'success' ? 'Synced' : connected.syncStatus,
+            connected.syncStatus == 'success' ? l10n.get('synced') : connected.syncStatus,
             style: TextStyle(
               color: connected.syncStatus == 'success'
                   ? AppTheme.success
@@ -267,22 +263,22 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     backgroundColor: AppTheme.surface,
-                    title: const Text('Disconnect Exchange',
-                        style: TextStyle(color: AppTheme.textOnSurface)),
+                    title: Text(l10n.get('disconnect_exchange'),
+                        style: const TextStyle(color: AppTheme.textOnSurface)),
                     content: Text(
-                      'Are you sure you want to disconnect ${connected.label}?',
+                      '${l10n.get('disconnect_confirm')} ${connected.label}?',
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
+                        child: Text(l10n.get('cancel')),
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.error),
-                        child: const Text('Disconnect'),
+                        child: Text(l10n.get('disconnect')),
                       ),
                     ],
                   ),
@@ -293,10 +289,10 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'disconnect',
-                child: Text('Disconnect',
-                    style: TextStyle(color: AppTheme.error)),
+                child: Text(l10n.get('disconnect'),
+                    style: const TextStyle(color: AppTheme.error)),
               ),
             ],
           ),
@@ -305,7 +301,7 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     );
   }
 
-  Widget _buildExchangeCard(Exchange exchange, bool isConnected) {
+  Widget _buildExchangeCard(AppLocalizations l10n, Exchange exchange, bool isConnected) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Container(
@@ -316,30 +312,16 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
         child: ListTile(
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: CircleAvatar(
-            backgroundColor: _parseColor(exchange.logoColor).withAlpha(51),
-            child: Text(
-              exchange.logoLetter,
-              style: TextStyle(
-                color: _parseColor(exchange.logoColor),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          leading: _buildExchangeLogo(
+            exchange.logoUrl,
+            exchange.name,
+            exchange.logoColor,
           ),
           title: Text(
             exchange.name,
             style: GoogleFonts.inter(
               color: AppTheme.textOnSurface,
               fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            exchange.description,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 12,
             ),
           ),
           trailing: isConnected
@@ -355,14 +337,69 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
-                  child: const Text('Connect'),
+                  child: Text(l10n.get('connect')),
                 ),
         ),
       ),
     );
   }
 
-  Color _parseColor(String hex) {
+  static const _exchangeColorMap = {
+    'binance': '#F3BA2F',
+    'okx': '#FFFFFF',
+    'bybit': '#F7A600',
+    'coinbase': '#0052FF',
+    'gateio': '#2354E6',
+    'bitget': '#00F0FF',
+  };
+
+  Widget _buildExchangeLogo(String? logoUrl, String name, String? colorHex, {double size = 40}) {
+    final fallbackColor = _parseColor(colorHex);
+    final letter = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return SharpNetworkImage(
+        imageUrl: logoUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(size / 2),
+        placeholder: (_, __) => CircleAvatar(
+          radius: size / 2,
+          backgroundColor: fallbackColor.withAlpha(51),
+          child: Text(
+            letter,
+            style: TextStyle(
+              color: fallbackColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        errorWidget: (_, __, ___) => CircleAvatar(
+          radius: size / 2,
+          backgroundColor: fallbackColor.withAlpha(51),
+          child: Text(
+            letter,
+            style: TextStyle(
+              color: fallbackColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: fallbackColor.withAlpha(51),
+      child: Text(letter,
+          style:
+              TextStyle(color: fallbackColor, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Color _parseColor(String? hex) {
+    if (hex == null) return AppTheme.accentCyan;
     try {
       final hexClean = hex.replaceAll('#', '');
       return Color(int.parse('FF$hexClean', radix: 16));

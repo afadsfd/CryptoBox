@@ -8,6 +8,7 @@ import 'app/theme.dart';
 import 'core/l10n/app_localizations.dart';
 import 'core/security/key_manager.dart';
 import 'core/security/security_provider.dart';
+import 'features/profile/profile_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,19 +39,21 @@ void main() async {
       overrides: [
         keyManagerProvider.overrideWithValue(keyManager),
       ],
-      child: const CryptoFolioApp(),
+      child: const CryptoBoxApp(),
     ),
   );
 }
 
-/// CryptoFolio 应用
-class CryptoFolioApp extends ConsumerWidget {
-  const CryptoFolioApp({super.key});
+/// CryptoBox 应用
+class CryptoBoxApp extends ConsumerWidget {
+  const CryptoBoxApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+
     return MaterialApp.router(
-      title: 'CryptoFolio',
+      title: 'CryptoBox',
       debugShowCheckedModeBanner: false,
 
       // 主题配置
@@ -61,6 +64,7 @@ class CryptoFolioApp extends ConsumerWidget {
       // 路由配置
       routerConfig: ref.watch(routerProvider),
       
+      locale: locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

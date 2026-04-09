@@ -13,6 +13,7 @@ class Exchange {
   final String description;
   final String logoColor;
   final String logoLetter;
+  final String logoUrl;
   final bool supportsSpot;
   final bool supportsFutures;
   final bool requiresPassphrase;
@@ -26,6 +27,7 @@ class Exchange {
     required this.description,
     required this.logoColor,
     required this.logoLetter,
+    this.logoUrl = '',
     this.supportsSpot = true,
     this.supportsFutures = true,
     this.requiresPassphrase = false,
@@ -40,6 +42,7 @@ class ConnectedExchange {
   final String id;
   final String exchangeName;
   final String label;
+  final String logoUrl;
   final bool isActive;
   final DateTime? lastSyncAt;
   final String syncStatus;
@@ -48,6 +51,7 @@ class ConnectedExchange {
     required this.id,
     required this.exchangeName,
     required this.label,
+    this.logoUrl = '',
     this.isActive = true,
     this.lastSyncAt,
     this.syncStatus = 'pending',
@@ -192,9 +196,10 @@ class ExchangesNotifier extends StateNotifier<ExchangesState> {
         return Exchange(
           id: info.id,
           name: info.name,
-          description: '${info.name} Exchange',
+          description: '',
           logoColor: _exchangeColorMap[info.id] ?? '#3B82F6',
           logoLetter: _computeLogoLetter(info.name),
+          logoUrl: info.logoUrl,
           supportsSpot: true,
           supportsFutures: false,
           requiresPassphrase: info.requiresPassphrase,
@@ -228,10 +233,12 @@ class ExchangesNotifier extends StateNotifier<ExchangesState> {
   Future<List<ConnectedExchange>> _loadConnectedFromDB() async {
     final accounts = await _exchangeRepo.getAllAccounts();
     return accounts.map((acct) {
+      final info = ExchangeInfo.findById(acct.exchangeName);
       return ConnectedExchange(
         id: acct.id,
         exchangeName: acct.exchangeName,
         label: acct.label.isNotEmpty ? acct.label : acct.exchangeName,
+        logoUrl: info?.logoUrl ?? '',
         isActive: acct.isActive,
         lastSyncAt: acct.lastSyncAt,
         syncStatus: acct.lastSyncAt != null ? 'success' : 'pending',

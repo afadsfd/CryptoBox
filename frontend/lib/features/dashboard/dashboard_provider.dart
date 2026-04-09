@@ -2,56 +2,62 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../../core/market/coingecko_provider.dart';
 import '../portfolio/portfolio_provider.dart';
 import '../portfolio/portfolio_service.dart';
 
-/// 持仓数据模型（UI 层使用）
-class HoldingItem {
+/// 单资产行（UI）
+class DashboardAssetRow {
   final String symbol;
   final String name;
   final double quantity;
   final double priceUsd;
   final double valueUsd;
   final double change24hPercent;
-  final double portfolioPercent;
+  /// 占该交易所小计的比例
+  final double pctOfExchange;
+  /// 占组合总资产的比例
+  final double pctOfPortfolio;
+  final String? imageUrl;
   final String iconLetter;
   final int iconColor;
 
-  HoldingItem({
+  const DashboardAssetRow({
     required this.symbol,
     required this.name,
     required this.quantity,
     required this.priceUsd,
     required this.valueUsd,
     required this.change24hPercent,
-    required this.portfolioPercent,
+    required this.pctOfExchange,
+    required this.pctOfPortfolio,
+    this.imageUrl,
     required this.iconLetter,
     required this.iconColor,
   });
+}
 
-  HoldingItem copyWith({
-    String? symbol,
-    String? name,
-    double? quantity,
-    double? priceUsd,
-    double? valueUsd,
-    double? change24hPercent,
-    double? portfolioPercent,
-    String? iconLetter,
-    int? iconColor,
-  }) {
-    return HoldingItem(
-      symbol: symbol ?? this.symbol,
-      name: name ?? this.name,
-      quantity: quantity ?? this.quantity,
-      priceUsd: priceUsd ?? this.priceUsd,
-      valueUsd: valueUsd ?? this.valueUsd,
-      change24hPercent: change24hPercent ?? this.change24hPercent,
-      portfolioPercent: portfolioPercent ?? this.portfolioPercent,
-      iconLetter: iconLetter ?? this.iconLetter,
-      iconColor: iconColor ?? this.iconColor,
-    );
-  }
+/// 按交易所账户分组（可展开）
+class DashboardExchangeSection {
+  final String accountId;
+  final String headerLabel;
+  final String exchangeId;
+  final String displayName;
+  final String? exchangeLogoUrl;
+  final double totalValueUsd;
+  final double pctOfPortfolio;
+  final List<DashboardAssetRow> assets;
+
+  const DashboardExchangeSection({
+    required this.accountId,
+    required this.headerLabel,
+    required this.exchangeId,
+    required this.displayName,
+    this.exchangeLogoUrl,
+    required this.totalValueUsd,
+    required this.pctOfPortfolio,
+    required this.assets,
+  });
 }
 
 /// 图表数据点
@@ -106,11 +112,15 @@ class SourceDistribution {
   final String source;
   final double value;
   final double percent;
+  final String? logoUrl;
+  final String exchangeId;
 
   SourceDistribution({
     required this.source,
     required this.value,
     required this.percent,
+    this.logoUrl,
+    this.exchangeId = '',
   });
 }
 
@@ -119,7 +129,7 @@ class DashboardState {
   final double totalValue;
   final double change24h;
   final double changePercent;
-  final List<HoldingItem> holdings;
+  final List<DashboardExchangeSection> exchangeSections;
   final ChartData chartData;
   final List<ConnectedSource> connectedSources;
   final List<SourceDistribution> sourceDistribution;
@@ -132,7 +142,7 @@ class DashboardState {
     this.totalValue = 0.0,
     this.change24h = 0.0,
     this.changePercent = 0.0,
-    this.holdings = const [],
+    this.exchangeSections = const [],
     required this.chartData,
     this.connectedSources = const [],
     this.sourceDistribution = const [],
@@ -143,13 +153,15 @@ class DashboardState {
   });
 
   bool get hasAnyData =>
-      totalValue > 0 || holdings.isNotEmpty || chartData.points.isNotEmpty;
+      totalValue > 0 ||
+      exchangeSections.isNotEmpty ||
+      chartData.points.isNotEmpty;
 
   DashboardState copyWith({
     double? totalValue,
     double? change24h,
     double? changePercent,
-    List<HoldingItem>? holdings,
+    List<DashboardExchangeSection>? exchangeSections,
     ChartData? chartData,
     List<ConnectedSource>? connectedSources,
     List<SourceDistribution>? sourceDistribution,
@@ -162,7 +174,7 @@ class DashboardState {
       totalValue: totalValue ?? this.totalValue,
       change24h: change24h ?? this.change24h,
       changePercent: changePercent ?? this.changePercent,
-      holdings: holdings ?? this.holdings,
+      exchangeSections: exchangeSections ?? this.exchangeSections,
       chartData: chartData ?? this.chartData,
       connectedSources: connectedSources ?? this.connectedSources,
       sourceDistribution: sourceDistribution ?? this.sourceDistribution,
@@ -295,31 +307,63 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 
   Future<void> _loadHoldings() async {
-    final items = await _portfolioService.getHoldings();
+    final groups = await _portfolioService.getHoldingsGroupedByExchange();
+    final grandTotal =
+        groups.fold<double>(0, (sum, g) => sum + g.totalValueUsd);
 
-    // 计算总值用于百分比
-    double totalVal = 0;
-    for (final h in items) {
-      totalVal += h.valueUsd;
+    final allSymbols = <String>{};
+    for (final g in groups) {
+      for (final a in g.holdings) {
+        allSymbols.add(a.symbol);
+      }
     }
 
-    final holdings = items.map((h) {
-      final symbol = h.symbol;
-      return HoldingItem(
-        symbol: symbol,
-        name: symbol, // 本地服务无 name 字段，使用 symbol
-        quantity: h.quantity,
-        priceUsd: h.priceUsd,
-        valueUsd: h.valueUsd,
-        change24hPercent: h.change24h ?? 0.0,
-        portfolioPercent:
-            totalVal > 0 ? h.valueUsd / totalVal * 100 : 0.0,
-        iconLetter: symbol.isNotEmpty ? symbol[0] : '?',
-        iconColor: _coinColorMap[symbol] ?? _defaultCoinColor,
+    Map<String, String> images = {};
+    if (allSymbols.isNotEmpty) {
+      try {
+        final cg = _ref.read(coingeckoServiceProvider);
+        images = await cg.getCoinSmallImageUrls(allSymbols.toList());
+      } catch (e) {
+        debugPrint('Dashboard: coin images failed: $e');
+      }
+    }
+
+    final sections = groups.map((g) {
+      final rows = g.holdings.map((a) {
+        final sym = a.symbol;
+        final pctEx =
+            g.totalValueUsd > 0 ? a.valueUsd / g.totalValueUsd * 100 : 0.0;
+        final pctPort =
+            grandTotal > 0 ? a.valueUsd / grandTotal * 100 : 0.0;
+        return DashboardAssetRow(
+          symbol: sym,
+          name: sym,
+          quantity: a.quantity,
+          priceUsd: a.priceUsd,
+          valueUsd: a.valueUsd,
+          change24hPercent: a.change24h ?? 0.0,
+          pctOfExchange: pctEx,
+          pctOfPortfolio: pctPort,
+          imageUrl: images[sym],
+          iconLetter: sym.isNotEmpty ? sym[0] : '?',
+          iconColor: _coinColorMap[sym] ?? _defaultCoinColor,
+        );
+      }).toList();
+
+      return DashboardExchangeSection(
+        accountId: g.accountId,
+        headerLabel: g.label,
+        exchangeId: g.exchangeId,
+        displayName: g.displayName,
+        exchangeLogoUrl: g.logoUrl.isEmpty ? null : g.logoUrl,
+        totalValueUsd: g.totalValueUsd,
+        pctOfPortfolio:
+            grandTotal > 0 ? g.totalValueUsd / grandTotal * 100 : 0.0,
+        assets: rows,
       );
     }).toList();
 
-    state = state.copyWith(holdings: holdings);
+    state = state.copyWith(exchangeSections: sections);
   }
 
   Future<void> _loadSources() async {
@@ -344,6 +388,8 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
                 source: s.label,
                 value: s.totalValueUsd,
                 percent: s.percentage,
+                logoUrl: s.logoUrl.isEmpty ? null : s.logoUrl,
+                exchangeId: s.exchangeName,
               ))
           .toList();
 
@@ -413,11 +459,6 @@ final totalValueProvider = Provider<double>((ref) {
 /// 24h 涨跌幅 Provider
 final changePercentProvider = Provider<double>((ref) {
   return ref.watch(dashboardProvider).changePercent;
-});
-
-/// 持仓列表 Provider
-final holdingsProvider = Provider<List<HoldingItem>>((ref) {
-  return ref.watch(dashboardProvider).holdings;
 });
 
 /// 图表数据 Provider

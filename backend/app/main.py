@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="CryptoFolio API - Multi-exchange cryptocurrency portfolio tracking",
+    description="CryptoBox API - Multi-exchange cryptocurrency portfolio tracking",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",

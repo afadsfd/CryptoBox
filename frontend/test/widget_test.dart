@@ -1,4 +1,4 @@
-// Basic smoke test for CryptoFolio app
+// Basic smoke test for CryptoBox app
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,7 +8,7 @@ void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(
-        child: CryptoFolioApp(),
+        child: CryptoBoxApp(),
       ),
     );
 

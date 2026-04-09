@@ -1,10 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../shared/widgets/glass_card.dart';
 import 'profile_provider.dart';
+
+String _brandMonogram(AppLocalizations l10n) {
+  final n = l10n.get('app_name');
+  if (n.isEmpty) return '?';
+  return n.substring(0, 1).toUpperCase();
+}
+
+Future<PackageInfo>? _cachedPackageInfo;
+Future<PackageInfo> _loadPackageInfoOnce() =>
+    _cachedPackageInfo ??= PackageInfo.fromPlatform();
+
+Future<void> _launchExternalUrl(BuildContext context, String url) async {
+  final uri = Uri.parse(url);
+  try {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('无法打开链接')),
+      );
+    }
+  }
+}
 
 /// 我的页面 (Profile/Settings) — 本地化版本
 class ProfilePage extends ConsumerWidget {
@@ -12,7 +40,6 @@ class ProfilePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -45,15 +72,15 @@ class ProfilePage extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _buildSecuritySection(context, ref),
-                  const SizedBox(height: 24),
                   _buildApiManagementSection(context, ref),
                   const SizedBox(height: 24),
                   _buildPreferencesSection(context, ref),
                   const SizedBox(height: 24),
+                  _buildDeveloperSection(context),
+                  const SizedBox(height: 24),
                   _buildDangerZone(context, ref),
                   const SizedBox(height: 32),
-                  _buildVersionInfo(),
+                  _buildVersionInfo(context),
                 ]),
               ),
             ),
@@ -70,6 +97,7 @@ class ProfilePage extends ConsumerWidget {
 
   /// App 标题头部（替代原来的用户资料头部）
   Widget _buildAppHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -97,10 +125,10 @@ class ProfilePage extends ConsumerWidget {
                 shape: BoxShape.circle,
                 color: AppTheme.surfaceHighest,
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'C',
-                  style: TextStyle(
+                  _brandMonogram(l10n),
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textOnSurface,
@@ -117,7 +145,7 @@ class ProfilePage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'CryptoFolio',
+                  l10n.get('app_name'),
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -136,7 +164,7 @@ class ProfilePage extends ConsumerWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Local-only portfolio tracker',
+                      l10n.get('local_tracker'),
                       style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textOnSurfaceVariant,
@@ -158,7 +186,7 @@ class ProfilePage extends ConsumerWidget {
                     ),
                   ),
                   child: Text(
-                    'Privacy First',
+                    l10n.get('privacy_first'),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -175,46 +203,15 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  /// 构建安全设置区域
-  Widget _buildSecuritySection(BuildContext context, WidgetRef ref) {
-    final preferences = ref.watch(userPreferencesProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle('Security Protocol', Icons.security),
-        const SizedBox(height: 12),
-        GlassCard(
-          padding: const EdgeInsets.all(4),
-          child: Column(
-            children: [
-              _buildSettingItem(
-                icon: Icons.fingerprint,
-                title: 'Biometric Authentication',
-                subtitle: 'Use FaceID or TouchID to unlock',
-                trailing: Switch(
-                  value: preferences.biometricEnabled,
-                  onChanged: (value) {
-                    ref.read(profileProvider.notifier).toggleBiometric(value);
-                  },
-                  activeColor: AppTheme.primaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   /// 构建 API 管理区域
   Widget _buildApiManagementSection(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final apis = ref.watch(connectedApisProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Connected Exchanges', Icons.terminal),
+        _buildSectionTitle(l10n.get('connected_exchanges'), Icons.terminal),
         const SizedBox(height: 12),
         GlassCard(
           padding: const EdgeInsets.all(4),
@@ -223,8 +220,8 @@ class ProfilePage extends ConsumerWidget {
               if (apis.isEmpty)
                 _buildSettingItem(
                   icon: Icons.info_outline,
-                  title: 'No exchanges connected',
-                  subtitle: 'Go to Connect tab to add your first exchange',
+                  title: l10n.get('no_exchanges_connected'),
+                  subtitle: l10n.get('no_exchanges_hint'),
                   iconColor: AppTheme.textSecondary,
                 ),
               ...apis.map((api) => _buildApiItem(context, api)),
@@ -267,49 +264,23 @@ class ProfilePage extends ConsumerWidget {
 
   /// 构建偏好设置区域
   Widget _buildPreferencesSection(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final preferences = ref.watch(userPreferencesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Preferences', Icons.tune),
+        _buildSectionTitle(l10n.get('preferences'), Icons.tune),
         const SizedBox(height: 12),
         GlassCard(
           padding: const EdgeInsets.all(4),
           child: Column(
             children: [
-              // 基础货币
-              _buildSettingItem(
-                icon: Icons.payments,
-                title: 'Base Currency',
-                subtitle: _getCurrencyFullName(preferences.baseCurrency),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      preferences.baseCurrency,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textOnSurface,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.expand_more,
-                      color: AppTheme.textOnSurfaceVariant,
-                      size: 20,
-                    ),
-                  ],
-                ),
-                onTap: () => _showCurrencySelector(context, ref),
-              ),
-              const Divider(height: 1, indent: 56, color: AppTheme.border),
               // 刷新间隔
               _buildSettingItem(
                 icon: Icons.sync,
-                title: 'Refresh Interval',
-                subtitle: 'Auto-refresh portfolio data',
+                title: l10n.get('refresh_interval'),
+                subtitle: l10n.get('refresh_subtitle'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -332,18 +303,31 @@ class ProfilePage extends ConsumerWidget {
                 onTap: () => _showRefreshIntervalSelector(context, ref),
               ),
               const Divider(height: 1, indent: 56, color: AppTheme.border),
-              // 市场提醒
+              // 语言选择
               _buildSettingItem(
-                icon: Icons.notifications_active,
-                title: 'Market Alerts',
-                subtitle: 'Push notifications for high volatility',
-                trailing: Switch(
-                  value: preferences.marketAlertsEnabled,
-                  onChanged: (value) {
-                    ref.read(profileProvider.notifier).toggleMarketAlerts(value);
-                  },
-                  activeColor: AppTheme.primaryContainer,
+                icon: Icons.language,
+                title: l10n.get('language'),
+                subtitle: l10n.get('language_subtitle'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      preferences.languageCode == 'zh' ? '中文' : 'English',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textOnSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.expand_more,
+                      color: AppTheme.textOnSurfaceVariant,
+                      size: 20,
+                    ),
+                  ],
                 ),
+                onTap: () => _showLanguageSelector(context, ref),
               ),
             ],
           ),
@@ -354,6 +338,8 @@ class ProfilePage extends ConsumerWidget {
 
   /// 构建危险操作区域 — 清除所有数据
   Widget _buildDangerZone(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -384,7 +370,7 @@ class ProfilePage extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Clear All Data',
+                  l10n.get('clear_all_data'),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -399,16 +385,81 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  /// 构建版本信息
-  Widget _buildVersionInfo() {
-    return Center(
-      child: Text(
-        'Version v1.0.0',
-        style: TextStyle(
-          fontSize: 12,
-          color: AppTheme.textSecondary,
+  /// 关于 / 开发者
+  Widget _buildDeveloperSection(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    const email = 'lz3862680@gmail.com';
+    const tgLabel = '@sky87531';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(l10n.get('contact_developer'), Icons.support_agent),
+        const SizedBox(height: 12),
+        GlassCard(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Text(
+                  l10n.get('developer_credit'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textOnSurfaceVariant,
+                  ),
+                ),
+              ),
+              const Divider(
+                height: 1,
+                indent: 12,
+                endIndent: 12,
+                color: AppTheme.border,
+              ),
+              _buildSettingItem(
+                icon: Icons.mail_outline,
+                title: l10n.get('contact_email'),
+                subtitle: email,
+                iconColor: AppTheme.accentCyan,
+                onTap: () => _launchExternalUrl(context, 'mailto:$email'),
+              ),
+              const Divider(height: 1, indent: 56, color: AppTheme.border),
+              _buildSettingItem(
+                icon: Icons.chat_bubble_outline,
+                title: l10n.get('contact_telegram'),
+                subtitle: tgLabel,
+                iconColor: AppTheme.accent,
+                onTap: () =>
+                    _launchExternalUrl(context, 'https://t.me/sky87531'),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
+    );
+  }
+
+  /// 构建版本信息（与 pubspec 同步）
+  Widget _buildVersionInfo(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return FutureBuilder<PackageInfo>(
+      future: _loadPackageInfoOnce(),
+      builder: (context, snap) {
+        final ver = snap.data?.version ?? '1.1.0';
+        return Center(
+          child: Text(
+            '${l10n.get('version')} v$ver',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -507,93 +558,9 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  /// 获取货币全称
-  String _getCurrencyFullName(String currency) {
-    final names = {
-      'USD': 'United States Dollar (USD)',
-      'EUR': 'Euro (EUR)',
-      'GBP': 'British Pound (GBP)',
-      'JPY': 'Japanese Yen (JPY)',
-      'CNY': 'Chinese Yuan (CNY)',
-    };
-    return names[currency] ?? currency;
-  }
-
-  /// 显示货币选择器
-  void _showCurrencySelector(BuildContext context, WidgetRef ref) {
-    final currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CNY'];
-    final preferences = ref.read(userPreferencesProvider);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withAlpha(77),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Select Base Currency',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textOnSurface,
-                ),
-              ),
-            ),
-            ...currencies.map((currency) => ListTile(
-                  leading: Text(
-                    _getCurrencyFlag(currency),
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                  title: Text(
-                    _getCurrencyFullName(currency),
-                    style: TextStyle(color: AppTheme.textOnSurface),
-                  ),
-                  trailing: preferences.baseCurrency == currency
-                      ? const Icon(Icons.check, color: AppTheme.accent)
-                      : null,
-                  onTap: () {
-                    ref
-                        .read(profileProvider.notifier)
-                        .updateBaseCurrency(currency);
-                    Navigator.pop(context);
-                  },
-                )),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 获取货币旗帜
-  String _getCurrencyFlag(String currency) {
-    final flags = {
-      'USD': '🇺🇸',
-      'EUR': '🇪🇺',
-      'GBP': '🇬🇧',
-      'JPY': '🇯🇵',
-      'CNY': '🇨🇳',
-    };
-    return flags[currency] ?? '💱';
-  }
-
   /// 显示刷新间隔选择器
   void _showRefreshIntervalSelector(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final intervals = [5, 15, 30, 60];
     final preferences = ref.read(userPreferencesProvider);
 
@@ -619,7 +586,7 @@ class ProfilePage extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Select Refresh Interval',
+                l10n.get('select_refresh'),
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -633,7 +600,7 @@ class ProfilePage extends ConsumerWidget {
                     color: AppTheme.primary,
                   ),
                   title: Text(
-                    '$interval minutes',
+                    '$interval ${l10n.get('minutes')}',
                     style: TextStyle(color: AppTheme.textOnSurface),
                   ),
                   trailing: preferences.refreshIntervalMinutes == interval
@@ -654,7 +621,72 @@ class ProfilePage extends ConsumerWidget {
   }
 
   /// 显示清除所有数据确认对话框
+  void _showLanguageSelector(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final preferences = ref.read(userPreferencesProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textSecondary.withAlpha(77),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                l10n.get('select_language'),
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textOnSurface,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Text('🇺🇸', style: TextStyle(fontSize: 24)),
+              title: Text('English', style: TextStyle(color: AppTheme.textOnSurface)),
+              trailing: preferences.languageCode == 'en'
+                  ? const Icon(Icons.check, color: AppTheme.accent)
+                  : null,
+              onTap: () {
+                ref.read(profileProvider.notifier).updateLanguage('en');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Text('🇨🇳', style: TextStyle(fontSize: 24)),
+              title: Text('中文', style: TextStyle(color: AppTheme.textOnSurface)),
+              trailing: preferences.languageCode == 'zh'
+                  ? const Icon(Icons.check, color: AppTheme.accent)
+                  : null,
+              onTap: () {
+                ref.read(profileProvider.notifier).updateLanguage('zh');
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showClearAllDataDialog(BuildContext outerContext, WidgetRef ref) {
+    final l10n = AppLocalizations.of(outerContext);
+
     showDialog(
       context: outerContext,
       builder: (dialogContext) => AlertDialog(
@@ -664,7 +696,7 @@ class ProfilePage extends ConsumerWidget {
             const Icon(Icons.warning, color: AppTheme.error),
             const SizedBox(width: 8),
             Text(
-              'Clear All Data',
+              l10n.get('clear_all_data_title'),
               style: GoogleFonts.spaceGrotesk(
                 color: AppTheme.textOnSurface,
                 fontWeight: FontWeight.w600,
@@ -673,14 +705,14 @@ class ProfilePage extends ConsumerWidget {
           ],
         ),
         content: Text(
-          'This will permanently delete all exchange connections, holdings data, portfolio history, and encryption keys. This action cannot be undone.',
+          l10n.get('clear_all_data_message'),
           style: TextStyle(color: AppTheme.textOnSurface),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(
-              'Cancel',
+              l10n.get('cancel'),
               style: TextStyle(color: AppTheme.textSecondary),
             ),
           ),
@@ -694,8 +726,8 @@ class ProfilePage extends ConsumerWidget {
                   SnackBar(
                     content: Text(
                       success
-                          ? 'All data cleared successfully'
-                          : 'Failed to clear data',
+                          ? l10n.get('data_cleared')
+                          : l10n.get('data_clear_failed'),
                     ),
                     backgroundColor: success ? AppTheme.success : AppTheme.error,
                   ),
@@ -705,7 +737,7 @@ class ProfilePage extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.error,
             ),
-            child: const Text('Clear All'),
+            child: Text(l10n.get('clear_all')),
           ),
         ],
       ),

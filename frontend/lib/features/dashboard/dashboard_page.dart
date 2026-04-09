@@ -9,7 +9,9 @@ import 'package:intl/intl.dart';
 
 import '../../app/router.dart';
 import '../../app/theme.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/format_helper.dart';
+import '../../shared/widgets/sharp_network_image.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../../shared/widgets/skeleton.dart';
@@ -57,6 +59,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     HapticFeedback.lightImpact();
     await ref.read(dashboardProvider.notifier).refresh();
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     final err = ref.read(dashboardProvider).error;
     if (err == null) {
       HapticFeedback.selectionClick();
@@ -64,11 +67,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ..clearSnackBars()
         ..showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('Portfolio updated'),
+                const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(l10n.get('portfolio_updated')),
               ],
             ),
             backgroundColor: AppTheme.success,
@@ -85,6 +88,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     // 监听刷新间隔变化
     ref.listen(
       userPreferencesProvider.select((p) => p.refreshIntervalMinutes),
@@ -145,7 +150,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                   child: Text(
-                    'Top Holdings',
+                    l10n.get('top_holdings'),
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -156,16 +161,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
 
               // 持仓列表 / 空状态
-              if (state.holdings.isEmpty)
+              if (state.exchangeSections.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: EmptyState(
                       icon: Icons.account_balance_wallet_outlined,
-                      title: 'No holdings yet',
-                      message:
-                          'Connect an exchange or wallet to start tracking your portfolio.',
-                      actionLabel: 'Connect Exchange',
+                      title: l10n.get('no_holdings_title'),
+                      message: l10n.get('no_holdings_message'),
+                      actionLabel: l10n.get('connect_exchange'),
                       onAction: () => context.goConnect(),
                     ),
                   ),
@@ -176,24 +180,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final holding = state.holdings[index];
+                        final section = state.exchangeSections[index];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child:
-                              _buildHoldingCard(context, holding, index == 0),
+                          child: _buildExchangeHoldingsSection(
+                            context,
+                            section,
+                            index == 0,
+                          ),
                         );
                       },
-                      childCount: state.holdings.length,
+                      childCount: state.exchangeSections.length,
                     ),
-                  ),
-                ),
-
-              // Connected Nodes 卡片（仅在有数据源时显示）
-              if (state.connectedSources.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _buildConnectedNodesCard(context, state),
                   ),
                 ),
 
@@ -214,6 +212,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     DashboardState state,
     DashboardNotifier notifier,
   ) {
+    final l10n = AppLocalizations.of(context);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -221,7 +221,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         children: [
           // 小标题
           Text(
-            'Total Portfolio Value',
+            l10n.get('total_portfolio_value'),
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -230,12 +230,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ),
           const SizedBox(height: 8),
-          
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 总资产金额
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +248,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // 涨跌标签行
                     Builder(builder: (context) {
                       final isPositive = state.changePercent >= 0;
                       final changeColor =
@@ -262,7 +259,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                       return Row(
                         children: [
-                          // 百分比标签
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -275,11 +271,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  changeIcon,
-                                  size: 14,
-                                  color: changeColor,
-                                ),
+                                Icon(changeIcon, size: 14, color: changeColor),
                                 const SizedBox(width: 4),
                                 Text(
                                   '$sign${state.changePercent.toStringAsFixed(1)}%',
@@ -293,7 +285,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // 涨跌金额
                           Text(
                             '$sign${FormatHelper.currency(state.change24h)}',
                             style: TextStyle(
@@ -308,8 +299,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ],
                 ),
               ),
-              
-              // 已连接交易所图标行
               _buildExchangeAvatars(state),
             ],
           ),
@@ -318,12 +307,65 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  /// 交易所头像行
+  static const _exchangeAvatarColors = {
+    'binance': Color(0xFFF3BA2F),
+    'okx': Color(0xFFFFFFFF),
+    'bybit': Color(0xFFF7A600),
+    'coinbase': Color(0xFF0052FF),
+    'gateio': Color(0xFF2354E6),
+    'bitget': Color(0xFF00F0FF),
+  };
+
   Widget _buildExchangeAvatars(DashboardState state) {
     final sources = state.sourceDistribution.take(3).toList();
-    final totalAvatars = sources.length + (state.sourceDistribution.length > 3 ? 1 : 0);
-    // 每个头像 36px 宽，重叠偏移 8px
-    final totalWidth = totalAvatars > 0 ? 36.0 + (totalAvatars - 1) * 28.0 : 0.0;
+    final totalAvatars =
+        sources.length + (state.sourceDistribution.length > 3 ? 1 : 0);
+    final totalWidth =
+        totalAvatars > 0 ? 36.0 + (totalAvatars - 1) * 28.0 : 0.0;
+
+    Widget avatarFace(SourceDistribution src, Color ringColor) {
+      final letter = src.source.isNotEmpty ? src.source.substring(0, 1) : '?';
+      final url = src.logoUrl;
+      if (url != null && url.isNotEmpty) {
+        return SharpNetworkImage(
+          imageUrl: url,
+          width: 36,
+          height: 36,
+          fit: BoxFit.cover,
+          borderRadius: BorderRadius.circular(18),
+          placeholder: (_, __) => Center(
+            child: Text(
+              letter,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: ringColor,
+              ),
+            ),
+          ),
+          errorWidget: (_, __, ___) => Center(
+            child: Text(
+              letter,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: ringColor,
+              ),
+            ),
+          ),
+        );
+      }
+      return Center(
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: ringColor,
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       width: totalWidth,
@@ -331,14 +373,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Stack(
         children: [
           ...sources.asMap().entries.map((entry) {
-            final colors = {
-              'Binance': const Color(0xFFF3BA2F),
-              'Coinbase': const Color(0xFF0052FF),
-              'Kraken': const Color(0xFF5741D9),
-              'Wallet-ETH': const Color(0xFF627EEA),
-            };
-            final color = colors[entry.value.source] ?? AppTheme.primaryContainer;
-
+            final id = entry.value.exchangeId.toLowerCase();
+            final color =
+                _exchangeAvatarColors[id] ?? AppTheme.primaryContainer;
             return Positioned(
               left: entry.key * 28.0,
               child: Container(
@@ -347,10 +384,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceHighest,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.background,
-                    width: 2,
-                  ),
+                  border: Border.all(color: AppTheme.background, width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: color.withAlpha(77),
@@ -359,18 +393,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ),
                   ],
                 ),
-                child: Center(
-                  child: Text(
-                    entry.value.source.isNotEmpty
-                        ? entry.value.source.substring(0, 1)
-                        : '?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ),
+                child: avatarFace(entry.value, color),
               ),
             );
           }),
@@ -383,10 +406,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceHigh,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.background,
-                    width: 2,
-                  ),
+                  border: Border.all(color: AppTheme.background, width: 2),
                 ),
                 child: Center(
                   child: Text(
@@ -411,6 +431,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     DashboardState state,
     DashboardNotifier notifier,
   ) {
+    final l10n = AppLocalizations.of(context);
     final periods = ['1D', '1W', '1M', '3M', 'All'];
 
     return Padding(
@@ -425,7 +446,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Growth Metrics',
+                  l10n.get('growth_metrics'),
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -434,7 +455,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '30-Day Performance Analysis',
+                  l10n.get('performance_analysis'),
                   style: TextStyle(
                     fontSize: 12,
                     color: AppTheme.textOnSurfaceVariant,
@@ -494,9 +515,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem('High', notifier.formatCurrency(state.chartData.high)),
-                _buildStatItem('Low', notifier.formatCurrency(state.chartData.low)),
-                _buildStatItem('Average', notifier.formatCurrency(state.chartData.average)),
+                _buildStatItem(l10n.get('high'), notifier.formatCurrency(state.chartData.high)),
+                _buildStatItem(l10n.get('low'), notifier.formatCurrency(state.chartData.low)),
+                _buildStatItem(l10n.get('average'), notifier.formatCurrency(state.chartData.average)),
               ],
             ),
           ],
@@ -627,180 +648,207 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  /// 持仓卡片
-  Widget _buildHoldingCard(BuildContext context, HoldingItem holding, bool isPrimary) {
-    final isPositive = holding.change24hPercent >= 0;
-
+  /// 按交易所分组的展开卡片
+  Widget _buildExchangeHoldingsSection(
+    BuildContext context,
+    DashboardExchangeSection section,
+    bool isPrimary,
+  ) {
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: EdgeInsets.zero,
       borderColor: isPrimary ? AppTheme.primaryContainer.withAlpha(77) : null,
-      onTap: () {},
-      child: Row(
-        children: [
-          // 币种图标
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Color(holding.iconColor).withAlpha(38),
-              borderRadius: BorderRadius.circular(12),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: Material(
+          color: Colors.transparent,
+          child: ExpansionTile(
+            initiallyExpanded: isPrimary,
+            iconColor: AppTheme.textOnSurfaceVariant,
+            collapsedIconColor: AppTheme.textOnSurfaceVariant,
+            tilePadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+            leading: _buildRoundExchangeLogo(
+              section.exchangeLogoUrl,
+              section.displayName,
+              section.exchangeId,
             ),
-            child: Center(
-              child: Text(
-                holding.iconLetter,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(holding.iconColor),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // 名称和代码
-          Expanded(
-            child: Column(
+            title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  holding.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textOnSurface,
+                  FormatHelper.currency(section.totalValueUsd),
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryContainer,
+                    letterSpacing: -0.3,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
-                  '${isPositive ? '+' : ''}${holding.change24hPercent.toStringAsFixed(1)}%',
+                  '${section.pctOfPortfolio.toStringAsFixed(1)}%',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: isPositive ? AppTheme.success : AppTheme.danger,
+                    color: AppTheme.textOnSurfaceVariant,
                   ),
                 ),
               ],
             ),
+            children:
+                section.assets.map(_buildAssetRow).toList(),
           ),
-
-          // 持仓市值和占比
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                FormatHelper.currencyCompact(holding.valueUsd),
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: isPrimary ? AppTheme.primary : AppTheme.textOnSurface,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                '${holding.portfolioPercent.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textOnSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  /// Connected Nodes 卡片
-  Widget _buildConnectedNodesCard(BuildContext context, DashboardState state) {
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Connected Nodes',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textOnSurface,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...state.connectedSources.take(2).map((source) {
-            final isActive = source.status == 'active';
-            final icon = source.type == 'api' ? Icons.wifi : Icons.cloud_done;
-            
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
+  Widget _buildRoundExchangeLogo(
+    String? logoUrl,
+    String displayName,
+    String exchangeId,
+  ) {
+    const size = 36.0;
+    final id = exchangeId.toLowerCase();
+    final ring = _exchangeAvatarColors[id] ?? AppTheme.accentCyan;
+    final letter =
+        displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : '?';
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return SharpNetworkImage(
+        imageUrl: logoUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(size / 2),
+        placeholder: (_, __) => _letterAvatar(size, letter, ring),
+        errorWidget: (_, __, ___) => _letterAvatar(size, letter, ring),
+      );
+    }
+    return _letterAvatar(size, letter, ring);
+  }
+
+  Widget _letterAvatar(double size, String letter, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withAlpha(51),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        letter,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  /// 单资产行（全额金额 + 可选网络图标）
+  Widget _buildAssetRow(DashboardAssetRow row) {
+    final isPositive = row.change24hPercent >= 0;
+    const iconSize = 36.0;
+
+    Widget coinFace() {
+      final url = row.imageUrl;
+      if (url != null && url.isNotEmpty) {
+        return SharpNetworkImage(
+          imageUrl: url,
+          width: iconSize,
+          height: iconSize,
+          fit: BoxFit.cover,
+          borderRadius: BorderRadius.circular(10),
+          placeholder: (_, __) => _fallbackCoinIcon(row),
+          errorWidget: (_, __, ___) => _fallbackCoinIcon(row),
+        );
+      }
+      return _fallbackCoinIcon(row);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(width: iconSize, height: iconSize, child: coinFace()),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceHigh,
-                      borderRadius: BorderRadius.circular(12),
+                  Text(
+                    row.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textOnSurface,
                     ),
-                    child: Icon(
-                      icon,
-                      size: 20,
-                      color: isActive ? AppTheme.success : AppTheme.warning,
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          source.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textOnSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${source.type.toUpperCase()} · synced ${FormatHelper.relativeTime(source.lastSync)}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.textOnSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 2),
+                  Text(
+                    '${isPositive ? '+' : ''}${row.change24hPercent.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isPositive ? AppTheme.success : AppTheme.danger,
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: isActive ? AppTheme.success : AppTheme.warning,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isActive ? 'Active' : 'Syncing',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: isActive ? AppTheme.success : AppTheme.warning,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
-            );
-          }),
-        ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  FormatHelper.currency(row.valueUsd),
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryContainer,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${row.pctOfExchange.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textOnSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _fallbackCoinIcon(DashboardAssetRow row) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Color(row.iconColor).withAlpha(38),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        row.iconLetter,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: Color(row.iconColor),
+        ),
+      ),
+    );
+  }
+
 }

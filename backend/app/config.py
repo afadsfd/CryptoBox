@@ -4,7 +4,7 @@ from pydantic import model_validator
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "CryptoFolio API"
+    APP_NAME: str = "CryptoBox API"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
     

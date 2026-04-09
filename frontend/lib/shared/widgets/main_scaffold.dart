@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../app/router.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// 主布局 Scaffold
 /// 
@@ -89,14 +90,24 @@ class MainScaffold extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              navItem.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? AppTheme.accentCyan : AppTheme.textSecondary,
-                letterSpacing: 0.3,
-              ),
+            Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                final localizedLabels = {
+                  NavShellIndex.portfolio: l10n.get('nav_portfolio'),
+                  NavShellIndex.connect: l10n.get('nav_connect'),
+                  NavShellIndex.settings: l10n.get('nav_settings'),
+                };
+                return Text(
+                  localizedLabels[navItem] ?? navItem.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? AppTheme.accentCyan : AppTheme.textSecondary,
+                    letterSpacing: 0.3,
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -208,27 +219,37 @@ class DesktopMainScaffold extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Tooltip(
-        message: navItem.label,
-        preferBelow: false,
-        child: GestureDetector(
-          onTap: () => _onTap(navItem.navIndex),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isSelected
-              ? AppTheme.accentCyan.withAlpha(26)
-              : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+      child: Builder(
+        builder: (context) {
+          final l10n = AppLocalizations.of(context);
+          final localizedLabels = {
+            NavShellIndex.portfolio: l10n.get('nav_portfolio'),
+            NavShellIndex.connect: l10n.get('nav_connect'),
+            NavShellIndex.settings: l10n.get('nav_settings'),
+          };
+          return Tooltip(
+            message: localizedLabels[navItem] ?? navItem.label,
+            preferBelow: false,
+            child: GestureDetector(
+              onTap: () => _onTap(navItem.navIndex),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppTheme.accentCyan.withAlpha(26)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isSelected ? navItem.activeIcon : navItem.icon,
+                  color: isSelected ? AppTheme.accentCyan : AppTheme.textSecondary,
+                  size: 28,
+                ),
+              ),
             ),
-            child: Icon(
-              isSelected ? navItem.activeIcon : navItem.icon,
-              color: isSelected ? AppTheme.accentCyan : AppTheme.textSecondary,
-              size: 28,
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

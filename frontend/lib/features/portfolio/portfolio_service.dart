@@ -5,6 +5,7 @@ import 'dart:math';
 import '../../core/exchanges/adapters/base_adapter.dart';
 import '../../core/exchanges/exchange_service.dart';
 import '../../core/exchanges/models/balance.dart';
+import '../../core/exchanges/models/exchange_info.dart';
 import '../../core/local_storage/database.dart';
 import '../../core/local_storage/repositories/exchange_repository.dart';
 import '../../core/local_storage/repositories/holding_repository.dart';
@@ -13,6 +14,7 @@ import '../../core/local_storage/repositories/snapshot_repository.dart';
 import '../../core/market/coingecko_service.dart';
 import '../../core/security/key_manager.dart';
 import 'models/connected_source.dart';
+import 'models/exchange_holdings_group.dart';
 import 'models/history_data_point.dart';
 import 'models/holding_item.dart';
 import 'models/portfolio_summary.dart';
@@ -191,6 +193,66 @@ class PortfolioService {
     return items;
   }
 
+  /// 按交易所账户分组的持仓（不合并跨所同 symbol）
+  Future<List<ExchangeHoldingsGroup>> getHoldingsGroupedByExchange() async {
+    final accounts = await exchangeRepository.getAllAccounts();
+    if (accounts.isEmpty) return [];
+
+    final groups = <ExchangeHoldingsGroup>[];
+
+    for (final acct in accounts) {
+      final rows = await holdingRepository.getByExchangeId(acct.id);
+      final rawLines = <AccountHoldingLine>[];
+      var total = 0.0;
+
+      for (final h in rows) {
+        final v = h.valueUsd ?? 0;
+        if (v < _dustThreshold) continue;
+        total += v;
+        rawLines.add(AccountHoldingLine(
+          symbol: h.symbol.toUpperCase(),
+          quantity: h.quantity,
+          priceUsd: h.priceUsd ?? 0,
+          valueUsd: v,
+          change24h: null,
+        ));
+      }
+
+      if (rawLines.isEmpty) continue;
+
+      final symbols = rawLines.map((a) => a.symbol).toList();
+      final cached = await priceCacheRepository.getValidPrices(symbols);
+      final withChg = rawLines
+          .map(
+            (a) => AccountHoldingLine(
+              symbol: a.symbol,
+              quantity: a.quantity,
+              priceUsd: a.priceUsd,
+              valueUsd: a.valueUsd,
+              change24h: cached[a.symbol]?.change24h,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+
+      final info = ExchangeInfo.findById(acct.exchangeName);
+      groups.add(ExchangeHoldingsGroup(
+        accountId: acct.id,
+        label: acct.label.isNotEmpty
+            ? acct.label
+            : (info?.name ?? acct.exchangeName),
+        exchangeId: acct.exchangeName,
+        displayName: info?.name ?? acct.exchangeName,
+        logoUrl: info?.logoUrl ?? '',
+        totalValueUsd: total,
+        holdings: withChg,
+      ));
+    }
+
+    groups.sort((a, b) => b.totalValueUsd.compareTo(a.totalValueUsd));
+    return groups;
+  }
+
   // =========================================================================
   // getPortfolioHistory
   // =========================================================================
@@ -235,6 +297,7 @@ class PortfolioService {
     return accounts.map((acct) {
       final val = sourceValues[acct.id] ?? 0;
       final pct = grandTotal > 0 ? val / grandTotal * 100 : 0.0;
+      final info = ExchangeInfo.findById(acct.exchangeName);
       return ConnectedSource(
         id: acct.id,
         exchangeName: acct.exchangeName,
@@ -243,6 +306,7 @@ class PortfolioService {
         percentage: pct,
         lastSyncAt: acct.lastSyncAt,
         isActive: acct.isActive,
+        logoUrl: info?.logoUrl ?? '',
       );
     }).toList();
   }

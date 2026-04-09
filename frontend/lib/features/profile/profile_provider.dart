@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,31 +29,24 @@ class ConnectedApi {
   });
 }
 
-/// 用户偏好设置
+/// 用户偏好设置（仅保留实际生效项）
 class UserPreferences {
-  final String baseCurrency;
   final int refreshIntervalMinutes;
-  final bool biometricEnabled;
-  final bool marketAlertsEnabled;
+  final String languageCode; // 'en' | 'zh'
 
   const UserPreferences({
-    this.baseCurrency = 'USD',
     this.refreshIntervalMinutes = 5,
-    this.biometricEnabled = true,
-    this.marketAlertsEnabled = true,
+    this.languageCode = 'zh',
   });
 
   UserPreferences copyWith({
-    String? baseCurrency,
     int? refreshIntervalMinutes,
-    bool? biometricEnabled,
-    bool? marketAlertsEnabled,
+    String? languageCode,
   }) {
     return UserPreferences(
-      baseCurrency: baseCurrency ?? this.baseCurrency,
-      refreshIntervalMinutes: refreshIntervalMinutes ?? this.refreshIntervalMinutes,
-      biometricEnabled: biometricEnabled ?? this.biometricEnabled,
-      marketAlertsEnabled: marketAlertsEnabled ?? this.marketAlertsEnabled,
+      refreshIntervalMinutes:
+          refreshIntervalMinutes ?? this.refreshIntervalMinutes,
+      languageCode: languageCode ?? this.languageCode,
     );
   }
 }
@@ -88,10 +83,8 @@ class ProfileState {
 }
 
 /// SharedPreferences keys
-const _prefBaseCurrency = 'pref_base_currency';
 const _prefRefreshInterval = 'pref_refresh_interval';
-const _prefBiometricEnabled = 'pref_biometric_enabled';
-const _prefMarketAlerts = 'pref_market_alerts';
+const _prefLanguageCode = 'pref_language_code';
 
 /// Profile State Notifier — 本地化版本
 class ProfileNotifier extends StateNotifier<ProfileState> {
@@ -112,10 +105,8 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       // 1. 加载偏好设置（SharedPreferences）
       final prefs = await SharedPreferences.getInstance();
       final preferences = UserPreferences(
-        baseCurrency: prefs.getString(_prefBaseCurrency) ?? 'USD',
         refreshIntervalMinutes: prefs.getInt(_prefRefreshInterval) ?? 5,
-        biometricEnabled: prefs.getBool(_prefBiometricEnabled) ?? true,
-        marketAlertsEnabled: prefs.getBool(_prefMarketAlerts) ?? true,
+        languageCode: prefs.getString(_prefLanguageCode) ?? 'zh',
       );
 
       // 2. 加载已连接 API 列表（从本地 DB）
@@ -158,10 +149,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefBaseCurrency, newPreferences.baseCurrency);
-      await prefs.setInt(_prefRefreshInterval, newPreferences.refreshIntervalMinutes);
-      await prefs.setBool(_prefBiometricEnabled, newPreferences.biometricEnabled);
-      await prefs.setBool(_prefMarketAlerts, newPreferences.marketAlertsEnabled);
+      await prefs.setInt(
+        _prefRefreshInterval,
+        newPreferences.refreshIntervalMinutes,
+      );
+      await prefs.setString(_prefLanguageCode, newPreferences.languageCode);
 
       state = state.copyWith(
         preferences: newPreferences,
@@ -174,12 +166,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 
-  /// 更新基础货币
-  Future<void> updateBaseCurrency(String currency) async {
-    final newPreferences = state.preferences.copyWith(baseCurrency: currency);
-    await updatePreferences(newPreferences);
-  }
-
   /// 更新刷新间隔
   Future<void> updateRefreshInterval(int minutes) async {
     final newPreferences = state.preferences.copyWith(
@@ -188,19 +174,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     await updatePreferences(newPreferences);
   }
 
-  /// 切换生物识别认证
-  Future<void> toggleBiometric(bool enabled) async {
-    final newPreferences = state.preferences.copyWith(
-      biometricEnabled: enabled,
-    );
-    await updatePreferences(newPreferences);
-  }
-
-  /// 切换市场提醒
-  Future<void> toggleMarketAlerts(bool enabled) async {
-    final newPreferences = state.preferences.copyWith(
-      marketAlertsEnabled: enabled,
-    );
+  /// 切换语言
+  Future<void> updateLanguage(String code) async {
+    final newPreferences = state.preferences.copyWith(languageCode: code);
     await updatePreferences(newPreferences);
   }
 
@@ -252,4 +228,10 @@ final userPreferencesProvider = Provider<UserPreferences>((ref) {
 /// 已连接 API 列表 Provider
 final connectedApisProvider = Provider<List<ConnectedApi>>((ref) {
   return ref.watch(profileProvider).connectedApis;
+});
+
+/// 当前语言代码 Provider
+final localeProvider = Provider<Locale>((ref) {
+  final code = ref.watch(userPreferencesProvider).languageCode;
+  return Locale(code);
 });

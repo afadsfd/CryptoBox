@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/exchanges/models/exchange_info.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../shared/widgets/sharp_network_image.dart';
 import 'add_api_provider.dart';
 
 class AddApiPage extends ConsumerStatefulWidget {
@@ -43,9 +46,10 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
     final notifier = ref.read(addApiProvider(widget.exchangeId).notifier);
     final success = await notifier.submitConnection();
     if (success && mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Exchange connected successfully!'),
+        SnackBar(
+          content: Text(l10n.get('exchange_connected')),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -55,6 +59,7 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(addApiProvider(widget.exchangeId));
     final notifier = ref.read(addApiProvider(widget.exchangeId).notifier);
 
@@ -68,7 +73,7 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Connect ${state.exchangeName ?? state.exchangeId}',
+          '${l10n.get('connect')} ${state.exchangeName ?? state.exchangeId}',
           style: GoogleFonts.spaceGrotesk(
             color: AppTheme.textOnSurface,
             fontWeight: FontWeight.bold,
@@ -81,24 +86,12 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: CircleAvatar(
-                radius: 36,
-                backgroundColor: _parseColor(state.exchangeLogoColor)
-                    .withAlpha(51),
-                child: Text(
-                  state.exchangeLogoLetter,
-                  style: TextStyle(
-                    color: _parseColor(state.exchangeLogoColor),
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              child: _buildExchangeAvatar(state),
             ),
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Read-only API keys only',
+                l10n.get('read_only_api'),
                 style: GoogleFonts.inter(
                   color: AppTheme.textSecondary,
                   fontSize: 13,
@@ -133,22 +126,22 @@ color: AppTheme.error.withAlpha(26),
               const SizedBox(height: 16),
             ],
             _buildTextField(
-              label: 'API Key',
+              label: l10n.get('api_key'),
               controller: _apiKeyController,
               focusNode: _apiKeyFocus,
               autofocus: true,
               onChanged: notifier.setApiKey,
-              hintText: 'Enter your API key',
+              hintText: l10n.get('enter_api_key'),
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => _apiSecretFocus.requestFocus(),
             ),
             const SizedBox(height: 16),
             _buildTextField(
-              label: 'API Secret',
+              label: l10n.get('api_secret'),
               controller: _apiSecretController,
               focusNode: _apiSecretFocus,
               onChanged: notifier.setApiSecret,
-              hintText: 'Enter your API secret',
+              hintText: l10n.get('enter_api_secret'),
               obscure: _obscureSecret,
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => state.requiresPassphrase
@@ -166,11 +159,11 @@ color: AppTheme.error.withAlpha(26),
             if (state.requiresPassphrase) ...[
               const SizedBox(height: 16),
               _buildTextField(
-                label: 'Passphrase',
+                label: l10n.get('passphrase'),
                 controller: _passphraseController,
                 focusNode: _passphraseFocus,
                 onChanged: notifier.setPassphrase,
-                hintText: 'Enter your passphrase',
+                hintText: l10n.get('enter_passphrase'),
                 obscure: true,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => _labelFocus.requestFocus(),
@@ -178,11 +171,11 @@ color: AppTheme.error.withAlpha(26),
             ],
             const SizedBox(height: 16),
             _buildTextField(
-              label: 'Label (Optional)',
+              label: l10n.get('label_optional'),
               controller: _labelController,
               focusNode: _labelFocus,
               onChanged: notifier.setLabel,
-              hintText: 'e.g. My Trading Account',
+              hintText: l10n.get('label_hint'),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) {
                 if (state.canSubmit) _submit();
@@ -209,7 +202,7 @@ color: AppTheme.error.withAlpha(26),
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        'Connect',
+                        l10n.get('connect'),
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -234,7 +227,7 @@ color: AppTheme.error.withAlpha(26),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Your API keys are encrypted with AES-256 and stored securely. We only request read-only permissions.',
+                      l10n.get('security_notice'),
                       style: GoogleFonts.inter(
                         color: AppTheme.textSecondary,
                         fontSize: 13,
@@ -302,6 +295,39 @@ color: AppTheme.error.withAlpha(26),
         ),
       ],
     );
+  }
+
+  Widget _buildExchangeAvatar(AddApiState state) {
+    final info = ExchangeInfo.findById(state.exchangeId);
+    final logoUrl = info?.logoUrl;
+    final fallbackColor = _parseColor(state.exchangeLogoColor);
+
+    Widget fallback = CircleAvatar(
+      radius: 36,
+      backgroundColor: fallbackColor.withAlpha(51),
+      child: Text(
+        state.exchangeLogoLetter,
+        style: TextStyle(
+          color: fallbackColor,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return SharpNetworkImage(
+        imageUrl: logoUrl,
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(36),
+        placeholder: (_, __) => fallback,
+        errorWidget: (_, __, ___) => fallback,
+      );
+    }
+
+    return fallback;
   }
 
   Color _parseColor(String? hex) {

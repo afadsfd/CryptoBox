@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show min;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../utils/raster_image_url.dart';
 import 'models/price_point.dart';
 
 /// 缓存的价格数据
@@ -150,6 +152,7 @@ class CoinGeckoService {
   // --- 内存缓存 ---
   final Map<String, CachedPrice> _priceCache = {};
   final Map<String, _CachedHistory> _historyCache = {};
+  final Map<String, String> _coinImageUrlCache = {};
 
   final http.Client _client;
 
@@ -324,10 +327,70 @@ class CoinGeckoService {
     return prices[symbol.toUpperCase()];
   }
 
+  /// 按持仓 symbol 批量拉取 CoinGecko 小图标 URL（无映射或 API 失败则不在 map 中）。
+  Future<Map<String, String>> getCoinSmallImageUrls(List<String> symbols) async {
+    final result = <String, String>{};
+    final upperUnique = symbols.map((s) => s.toUpperCase()).toSet().toList();
+    final toFetch = <String>[];
+
+    const stableSmall =
+        'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
+    final stableIcon = upgradeRasterImageUrl(stableSmall);
+
+    for (final sym in upperUnique) {
+      if (_stablecoins.contains(sym)) {
+        result[sym] = stableIcon;
+        continue;
+      }
+      final cached = _coinImageUrlCache[sym];
+      if (cached != null) {
+        final hi = upgradeRasterImageUrl(cached);
+        if (hi != cached) {
+          _coinImageUrlCache[sym] = hi;
+        }
+        result[sym] = hi;
+        continue;
+      }
+      toFetch.add(sym);
+    }
+
+    const chunk = 40;
+    for (var i = 0; i < toFetch.length; i += chunk) {
+      final part = toFetch.sublist(i, min(i + chunk, toFetch.length));
+      final symParam = part.map((s) => s.toLowerCase()).join(',');
+      final data = await _request(
+        '$_baseUrl/coins/markets',
+        queryParameters: {
+          'vs_currency': 'usd',
+          'symbols': symParam,
+          'per_page': '250',
+          'page': '1',
+          'sparkline': 'false',
+        },
+      );
+
+      if (data is List) {
+        for (final raw in data) {
+          if (raw is! Map<String, dynamic>) continue;
+          final sym = (raw['symbol'] as String?)?.toUpperCase();
+          final img = raw['image'] as String?;
+          if (sym != null && img != null) {
+            final hi = upgradeRasterImageUrl(img);
+            _coinImageUrlCache[sym] = hi;
+            result[sym] = hi;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
   /// 清除所有缓存
   void clearCache() {
     _priceCache.clear();
     _historyCache.clear();
+    _coinImageUrlCache.clear();
   }
 
   // ────────────────────────────────────────────────────────────────
