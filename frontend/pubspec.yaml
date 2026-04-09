@@ -1,7 +1,7 @@
 name: frontend
 description: CryptoBox - Asset Aggregation App
 publish_to: 'none'
-version: 1.3.1+5
+version: 1.3.8+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -39,14 +39,15 @@ dev_dependencies:
   drift_dev: ^2.14.0
   flutter_launcher_icons: ^0.14.3
 
+# 透明底 PNG 在桌面会被系统垫白底；用 Adaptive 的 background 色填满透明区域（与 values/colors 一致）
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: assets/branding/app_icon.png
   adaptive_icon_background: "#0D47A1"
   adaptive_icon_foreground: assets/branding/app_icon.png
-  # 默认 16% 内边距会让图标变小并露出背景，易产生「黑圈」观感
-  adaptive_icon_foreground_inset: 0
+  # 0% 会让整图顶满画布，经桌面 mask 裁切后像「放大裁切」；约 16% 为 Material 建议的安全区留白
+  adaptive_icon_foreground_inset: 18
 
 flutter:
   uses-material-design: true
