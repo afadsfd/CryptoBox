@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CryptoBox — 一站式加密资产聚合</title>
+  <meta name="description" content="连接 Binance、OKX、Gate 等主流交易所，实时掌握全仓资产。API 密钥仅存本机，绝不上传。" />
+  <meta property="og:title" content="CryptoBox — 一站式加密资产聚合" />
+  <meta property="og:description" content="连接主流交易所，实时掌握全仓资产。API 密钥仅存本机，绝不上传。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="./logo.png" />
+
+  <link rel="icon" type="image/png" href="./logo.png" />
+  <link rel="apple-touch-icon" href="./logo.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #111417;
+      --surface:     #1A1D21;
+      --surface-l:   #22262B;
+      --surface-h:   #272A2E;
+      --border:      #2A2E33;
+      --outline:     #3C494E;
+      --text:        #E1E2E7;
+      --text-sec:    #8B8F95;
+      --text-var:    #BBC9CF;
+      --cyan:        #06B6D4;
+      --cyan-bright: #00D1FF;
+      --blue:        #3B82F6;
+      --primary:     #A4E6FF;
+      --success:     #22C55E;
+      --warning:     #F59E0B;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+
+    /* ── Gradient text ── */
+    .grad {
+      background: linear-gradient(135deg, var(--cyan-bright) 0%, var(--primary) 60%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section { padding: 96px 0; }
+    section + section { border-top: 1px solid var(--border); }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(17, 20, 23, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(42, 46, 51, 0.6);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+    }
+
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-sec);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .btn-nav {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 20px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+      color: #fff;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-nav:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    /* ── Hero ── */
+    #hero {
+      padding-top: 160px;
+      padding-bottom: 96px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* background glow blobs */
+    #hero::before {
+      content: '';
+      position: absolute;
+      top: -120px; left: 50%;
+      transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse at center,
+        rgba(6, 182, 212, 0.12) 0%,
+        rgba(59, 130, 246, 0.07) 40%,
+        transparent 70%);
+      pointer-events: none;
+    }
+
+    #hero::after {
+      content: '';
+      position: absolute;
+      bottom: -80px; right: -100px;
+      width: 500px; height: 500px;
+      background: radial-gradient(ellipse at center,
+        rgba(164, 230, 255, 0.06) 0%,
+        transparent 70%);
+      pointer-events: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--cyan);
+      letter-spacing: 0.05em;
+      margin-bottom: 28px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .hero-title {
+      font-size: clamp(40px, 7vw, 72px);
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+
+    .hero-sub {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: var(--text-sec);
+      max-width: 540px;
+      margin: 0 auto 44px;
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 64px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      box-shadow: 0 8px 32px rgba(6, 182, 212, 0.25);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(6, 182, 212, 0.35); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 28px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text-var);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.07);
+      border-color: var(--outline);
+      color: var(--text);
+    }
+
+    /* ── Mock Phone ── */
+    .phone-wrapper {
+      position: relative;
+      display: inline-block;
+      margin: 0 auto;
+    }
+
+    .phone-frame {
+      width: 260px;
+      height: 520px;
+      border-radius: 36px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      overflow: hidden;
+      position: relative;
+      box-shadow:
+        0 0 0 8px rgba(26,29,33,0.6),
+        0 40px 80px rgba(0,0,0,0.6),
+        0 0 60px rgba(6,182,212,0.08);
+      margin: 0 auto;
+    }
+
+    .phone-notch {
+      width: 80px; height: 22px;
+      border-radius: 0 0 14px 14px;
+      background: var(--bg);
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    .phone-screen {
+      padding: 0 16px 16px;
+    }
+
+    .screen-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 16px;
+    }
+
+    .screen-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-sec);
+    }
+
+    .screen-avatar {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+    }
+
+    .screen-balance {
+      text-align: center;
+      padding: 8px 0 20px;
+    }
+
+    .screen-balance-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-sec);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .screen-balance-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .screen-balance-change {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--success);
+      margin-top: 4px;
+    }
+
+    /* mini chart */
+    .mini-chart {
+      width: 100%;
+      height: 60px;
+      margin-bottom: 16px;
+    }
+
+    /* holding row */
+    .holding-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border-radius: 10px;
+      background: var(--surface-l);
+      margin-bottom: 6px;
+    }
+
+    .h-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      font-family: 'Space Grotesk', sans-serif;
+      flex-shrink: 0;
+    }
+
+    .h-info { flex: 1; min-width: 0; }
+    .h-name { font-size: 11px; font-weight: 600; color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+    .h-qty  { font-size: 9px; color: var(--text-sec); }
+    .h-val  { font-size: 11px; font-weight: 600; color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+
+    /* screen nav bar */
+    .screen-nav {
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0 4px;
+      border-top: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    .screen-nav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+
+    .nav-dot { width: 18px; height: 3px; border-radius: 2px; }
+    .nav-label { font-size: 8px; color: var(--text-sec); font-weight: 500; }
+    .nav-label.active { color: var(--cyan); }
+    .nav-dot.active { background: var(--cyan); }
+    .nav-dot.inactive { background: var(--surface-h); }
+
+    /* glow ring behind phone */
+    .phone-glow {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 340px; height: 340px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center,
+        rgba(6,182,212,0.15) 0%,
+        rgba(59,130,246,0.08) 40%,
+        transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    /* ── Stats strip ── */
+    .stats-strip {
+      display: flex;
+      gap: 2px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 32px 0;
+      overflow-x: auto;
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 140px;
+      text-align: center;
+      padding: 0 24px;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+
+    .stat-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-sec);
+      font-weight: 500;
+    }
+
+    /* ── Feature cards ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      transition: border-color 0.2s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(6,182,212,0.3), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--outline);
+      transform: translateY(-3px);
+    }
+    .feature-card:hover::before { opacity: 1; }
+
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      margin-bottom: 18px;
+    }
+
+    .feature-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .feature-desc {
+      font-size: 14px;
+      color: var(--text-sec);
+      line-height: 1.65;
+    }
+
+    /* ── Exchanges ── */
+    .exchanges-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 48px;
+    }
+
+    @media (min-width: 640px) {
+      .exchanges-grid { grid-template-columns: repeat(6, 1fr); }
+    }
+
+    .exchange-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 12px;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: default;
+    }
+
+    .exchange-card:hover {
+      border-color: var(--outline);
+      background: var(--surface-l);
+      transform: translateY(-2px);
+    }
+
+    .exchange-logo {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 0 auto 10px;
+      background: var(--surface-h);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .exchange-logo img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
+    .exchange-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-var);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* ── Privacy section ── */
+    .privacy-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+      margin-top: 56px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .privacy-card::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: -60px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(6,182,212,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .privacy-title {
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+
+    .privacy-desc {
+      font-size: 15px;
+      color: var(--text-sec);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .privacy-points {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .privacy-point {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--text-var);
+    }
+
+    .check {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: rgba(34, 197, 94, 0.15);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .check::after {
+      content: '✓';
+      font-size: 11px;
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    /* lock visual */
+    .lock-visual {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .lock-ring {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      border: 2px solid rgba(6,182,212,0.2);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      animation: rotate-ring 20s linear infinite;
+    }
+
+    @keyframes rotate-ring {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .lock-ring::before {
+      content: '';
+      position: absolute;
+      top: -2px; left: 50%;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      transform: translateX(-50%);
+    }
+
+    .lock-inner {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(6,182,212,0.15) 0%, rgba(59,130,246,0.1) 100%);
+      border: 1px solid rgba(6,182,212,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      animation: counter-rotate 20s linear infinite;
+    }
+
+    @keyframes counter-rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-360deg); }
+    }
+
+    .lock-label {
+      font-size: 12px;
+      color: var(--text-sec);
+      font-weight: 500;
+      text-align: center;
+    }
+
+    .lock-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .lock-tag {
+      padding: 4px 12px;
+      border-radius: 100px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.2);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--success);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* ── Download section ── */
+    #download {
+      text-align: center;
+      background: linear-gradient(180deg,
+        var(--bg) 0%,
+        rgba(6,182,212,0.04) 50%,
+        var(--bg) 100%);
+    }
+
+    .download-title {
+      font-size: clamp(32px, 5vw, 52px);
+      margin-bottom: 16px;
+    }
+
+    .download-sub {
+      font-size: 17px;
+      color: var(--text-sec);
+      margin-bottom: 48px;
+      max-width: 440px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .download-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 28px;
+      border-radius: 16px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-apk {
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(6,182,212,0.25);
+    }
+    .btn-apk:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(6,182,212,0.35); }
+
+    .btn-ios {
+      background: var(--surface-l);
+      border: 1px solid var(--border);
+      color: var(--text-sec);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .btn-icon { font-size: 22px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .btn-icon svg { display: block; width: 28px; height: 28px; }
+    .btn-apk .btn-icon svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); }
+    .btn-ios .btn-icon svg { opacity: 0.85; }
+    .btn-text { display: flex; flex-direction: column; text-align: left; }
+    .btn-text-top { font-size: 10px; font-weight: 500; opacity: 0.8; letter-spacing: 0.03em; }
+    .btn-text-main { font-size: 16px; font-weight: 700; }
+
+    .download-note {
+      font-size: 12px;
+      color: var(--text-sec);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .download-note span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* ── Section heading ── */
+    .section-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-family: 'Space Grotesk', sans-serif;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(26px, 4vw, 40px);
+      margin-bottom: 14px;
+    }
+
+    .section-sub {
+      font-size: 16px;
+      color: var(--text-sec);
+      max-width: 520px;
+      line-height: 1.65;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .footer-copy {
+      font-size: 13px;
+      color: var(--text-sec);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--text-sec);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      section { padding: 64px 0; }
+
+      .nav-links { display: none; }
+
+      .stats-strip {
+        grid-template-columns: repeat(2, 1fr);
+        display: grid;
+        gap: 0;
+      }
+
+      .stat-item {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 20px;
+      }
+      .stat-item:nth-child(odd) { border-right: 1px solid var(--border); }
+      .stat-item:last-child { border-bottom: none; }
+
+      .privacy-card {
+        grid-template-columns: 1fr;
+        padding: 32px 24px;
+      }
+
+      .phone-frame { width: 220px; height: 440px; }
+    }
+
+    /* ── Phone float ── */
+    .phone-wrapper {
+      animation: phone-float 5s ease-in-out infinite;
+    }
+    @keyframes phone-float {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-14px); }
+    }
+
+    /* ── Glow breathe ── */
+    .phone-glow {
+      animation: glow-breathe 5s ease-in-out infinite;
+    }
+    @keyframes glow-breathe {
+      0%, 100% { opacity: 0.7; transform: translate(-50%,-50%) scale(1); }
+      50%       { opacity: 1;   transform: translate(-50%,-50%) scale(1.15); }
+    }
+
+    /* ── Chart line draw ── */
+    .chart-line {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: chart-draw 2s cubic-bezier(0.4,0,0.2,1) forwards;
+      animation-delay: 0.6s;
+    }
+    @keyframes chart-draw {
+      to { stroke-dashoffset: 0; }
+    }
+    .chart-area {
+      opacity: 0;
+      animation: chart-area-in 0.6s ease forwards;
+      animation-delay: 2.4s;
+    }
+    @keyframes chart-area-in {
+      to { opacity: 1; }
+    }
+
+    /* ── Balance fade up ── */
+    .screen-balance-value {
+      opacity: 0;
+      animation: fade-up 0.5s ease forwards;
+      animation-delay: 0.4s;
+    }
+    .screen-balance-change {
+      opacity: 0;
+      animation: fade-up 0.5s ease forwards;
+      animation-delay: 0.65s;
+    }
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Holding rows slide in ── */
+    .holding-row {
+      opacity: 0;
+      transform: translateX(16px);
+      animation: row-in 0.4s ease forwards;
+    }
+    .holding-row:nth-child(1) { animation-delay: 1.5s; }
+    .holding-row:nth-child(2) { animation-delay: 1.7s; }
+    .holding-row:nth-child(3) { animation-delay: 1.9s; }
+    @keyframes row-in {
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ── Live price tick ── */
+    @keyframes price-tick {
+      0%, 88%, 100% { color: var(--text); }
+      92%           { color: var(--success); transform: scale(1.06); }
+      96%           { color: var(--text); }
+    }
+    .holding-row:nth-child(1) .h-val { animation: price-tick 5s ease-in-out 3s infinite; }
+    .holding-row:nth-child(2) .h-val { animation: price-tick 5s ease-in-out 4.5s infinite; }
+    .holding-row:nth-child(3) .h-val { animation: price-tick 5s ease-in-out 3.8s infinite; }
+
+    /* ── Scan line ── */
+    .phone-scan {
+      position: absolute;
+      left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(6,182,212,0.5) 30%,
+        rgba(6,182,212,0.8) 50%,
+        rgba(6,182,212,0.5) 70%,
+        transparent 100%);
+      pointer-events: none;
+      top: 0;
+      animation: scan-line 5s linear 3s infinite;
+      opacity: 0;
+    }
+    @keyframes scan-line {
+      0%   { top: 44px;   opacity: 0; }
+      3%   { opacity: 1; }
+      97%  { opacity: 1; }
+      100% { top: 100%;  opacity: 0; }
+    }
+
+    /* ── Live badge on screen ── */
+    .screen-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 100px;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.25);
+      font-size: 8px;
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: 0.06em;
+    }
+    .screen-live-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 1.5s infinite;
+    }
+
+    /* ── Fade-in animation ── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* stagger children */
+    .stagger > * { transition-delay: calc(var(--i, 0) * 80ms); }
+  </style>
+</head>
+
+<body>
+
+<!-- ══════════ NAV ══════════ -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo">
+      CryptoBox
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">功能</a></li>
+      <li><a href="#exchanges">支持交易所</a></li>
+      <li><a href="#privacy">隐私安全</a></li>
+      <li><a href="#download">下载</a></li>
+    </ul>
+    <a href="#download" class="btn-nav">免费下载</a>
+  </div>
+</nav>
+
+
+<!-- ══════════ HERO ══════════ -->
+<section id="hero">
+  <div class="container">
+    <div class="badge fade-in">
+      <span class="badge-dot"></span>
+      本地优先 · 密钥永不上传
+    </div>
+
+    <h1 class="hero-title fade-in">
+      一个 App，掌控<br /><span class="grad">全部加密资产</span>
+    </h1>
+
+    <p class="hero-sub fade-in">
+      连接 Binance、OKX、Gate 等主流交易所，
+      实时聚合持仓与收益。API 密钥仅存于手机本地，绝不经过任何服务器。
+    </p>
+
+    <div class="hero-cta fade-in">
+      <a href="#download" class="btn-primary">
+        <span>⬇</span> 立即下载 APK
+      </a>
+      <a href="#features" class="btn-secondary">
+        了解更多 →
+      </a>
+    </div>
+
+    <!-- Phone mockup -->
+    <div class="phone-wrapper fade-in">
+      <div class="phone-glow"></div>
+      <div class="phone-frame">
+        <div class="phone-scan"></div>
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+
+          <div class="screen-header">
+            <span class="screen-title">Portfolio</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="screen-live"><span class="screen-live-dot"></span>LIVE</span>
+              <div class="screen-avatar"></div>
+            </div>
+          </div>
+
+          <div class="screen-balance">
+            <div class="screen-balance-label">Total Value</div>
+            <div class="screen-balance-value">
+              $<span id="counter">0</span><span style="font-size:16px;color:var(--text-sec)">.57</span>
+            </div>
+            <div class="screen-balance-change">▲ +$1,240.33 &nbsp;(+1.49%)</div>
+          </div>
+
+          <!-- mini sparkline -->
+          <svg class="mini-chart" viewBox="0 0 228 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path class="chart-area"
+              d="M0 48 L20 44 L40 46 L60 38 L80 36 L100 30 L120 28 L140 22 L160 18 L180 14 L200 10 L228 6 L228 60 L0 60 Z"
+              fill="url(#chartGrad)"/>
+            <path class="chart-line"
+              pathLength="1"
+              d="M0 48 L20 44 L40 46 L60 38 L80 36 L100 30 L120 28 L140 22 L160 18 L180 14 L200 10 L228 6"
+              stroke="#06B6D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- moving dot at chart tip -->
+            <circle id="chart-dot" cx="228" cy="6" r="3.5" fill="#06B6D4"
+              style="opacity:0;filter:drop-shadow(0 0 4px #06B6D4);">
+              <animate attributeName="opacity" values="0;1" dur="0.3s" begin="2.5s" fill="freeze"/>
+              <animateTransform attributeName="transform" type="scale"
+                values="0.5,0.5;1.2,1.2;1,1" dur="0.6s" begin="2.5s" fill="freeze"
+                additive="sum"/>
+            </circle>
+          </svg>
+
+          <!-- Holdings -->
+          <div class="holding-row">
+            <div class="h-icon" style="background:rgba(247,147,26,0.15);color:#F7931A;">₿</div>
+            <div class="h-info">
+              <div class="h-name">Bitcoin</div>
+              <div class="h-qty">0.812 BTC</div>
+            </div>
+            <div class="h-val">$54,820</div>
+          </div>
+          <div class="holding-row">
+            <div class="h-icon" style="background:rgba(98,126,234,0.15);color:#627EEA;">Ξ</div>
+            <div class="h-info">
+              <div class="h-name">Ethereum</div>
+              <div class="h-qty">4.21 ETH</div>
+            </div>
+            <div class="h-val">$14,380</div>
+          </div>
+          <div class="holding-row">
+            <div class="h-icon" style="background:rgba(6,182,212,0.15);color:#06B6D4;">◎</div>
+            <div class="h-info">
+              <div class="h-name">Solana</div>
+              <div class="h-qty">97.4 SOL</div>
+            </div>
+            <div class="h-val">$15,032</div>
+          </div>
+
+          <div class="screen-nav">
+            <div class="screen-nav-item">
+              <div class="nav-dot active"></div>
+              <div class="nav-label active">资产</div>
+            </div>
+            <div class="screen-nav-item">
+              <div class="nav-dot inactive"></div>
+              <div class="nav-label">连接</div>
+            </div>
+            <div class="screen-nav-item">
+              <div class="nav-dot inactive"></div>
+              <div class="nav-label">设置</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════ STATS ══════════ -->
+<div class="container">
+  <div class="stats-strip stagger">
+    <div class="stat-item fade-in" style="--i:0">
+      <div class="stat-value grad">6</div>
+      <div class="stat-label">支持交易所</div>
+    </div>
+    <div class="stat-item fade-in" style="--i:1">
+      <div class="stat-value grad">0</div>
+      <div class="stat-label">服务器 · 零上传</div>
+    </div>
+    <div class="stat-item fade-in" style="--i:2">
+      <div class="stat-value grad">实时</div>
+      <div class="stat-label">价格数据</div>
+    </div>
+    <div class="stat-item fade-in" style="--i:3">
+      <div class="stat-value grad">免费</div>
+      <div class="stat-label">基础功能全开放</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════ FEATURES ══════════ -->
+<section id="features">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-tag">核心功能</div>
+      <h2 class="section-title">专为加密用户<br />设计的每一个细节</h2>
+      <p class="section-sub">从资产聚合到安全存储，CryptoBox 把最重要的事情做到极致。</p>
+    </div>
+
+    <div class="features-grid stagger">
+      <div class="feature-card fade-in" style="--i:0">
+        <div class="feature-icon" style="background:rgba(6,182,212,0.1);">📊</div>
+        <div class="feature-title">多交易所聚合</div>
+        <div class="feature-desc">同时连接 Binance、OKX、Bybit、Coinbase 等，所有资产汇总在同一个界面，不再多个 App 反复切换。</div>
+      </div>
+
+      <div class="feature-card fade-in" style="--i:1">
+        <div class="feature-icon" style="background:rgba(34,197,94,0.1);">🔐</div>
+        <div class="feature-title">本地安全存储</div>
+        <div class="feature-desc">API 密钥通过 iOS Keychain / Android Keystore 加密存储于手机硬件，密钥永远不离开你的设备。</div>
+      </div>
+
+      <div class="feature-card fade-in" style="--i:2">
+        <div class="feature-icon" style="background:rgba(164,230,255,0.1);">⚡</div>
+        <div class="feature-title">实时价格刷新</div>
+        <div class="feature-desc">接入 CoinGecko 实时数据，支持自动刷新间隔配置。下拉刷新即可同步最新持仓价值。</div>
+      </div>
+
+      <div class="feature-card fade-in" style="--i:3">
+        <div class="feature-icon" style="background:rgba(245,158,11,0.1);">📈</div>
+        <div class="feature-title">历史走势图表</div>
+        <div class="feature-desc">7天、30天、90天多周期切换，直观了解资产组合随时间的变化趋势，把握整体盈亏节奏。</div>
+      </div>
+
+      <div class="feature-card fade-in" style="--i:4">
+        <div class="feature-icon" style="background:rgba(59,130,246,0.1);">🎨</div>
+        <div class="feature-title">专业暗色界面</div>
+        <div class="feature-desc">Obsidian 深色主题，Space Grotesk 字体，玻璃态卡片设计。护眼的同时保持专业质感。</div>
+      </div>
+
+      <div class="feature-card fade-in" style="--i:5">
+        <div class="feature-icon" style="background:rgba(196,181,253,0.1);">🚫</div>
+        <div class="feature-title">无需注册账号</div>
+        <div class="feature-desc">打开即用，没有邮箱注册，没有手机验证，没有数据上云。你的数据完全属于你自己。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════ EXCHANGES ══════════ -->
+<section id="exchanges">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-tag">支持交易所</div>
+      <h2 class="section-title">主流平台，全面覆盖</h2>
+      <p class="section-sub">目前支持 6 大主流交易所，持续扩展中。仅需只读 API 权限，资产无法被操作。</p>
+    </div>
+
+    <div class="exchanges-grid stagger">
+      <div class="exchange-card fade-in" style="--i:0">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/52/standard/binance.jpg" alt="Binance" />
+        </div>
+        <div class="exchange-name">Binance</div>
+      </div>
+      <div class="exchange-card fade-in" style="--i:1">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/96/standard/WeChat_Image_20220117220452.png" alt="OKX" />
+        </div>
+        <div class="exchange-name">OKX</div>
+      </div>
+      <div class="exchange-card fade-in" style="--i:2">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/60/standard/Frame_1.png" alt="Gate" />
+        </div>
+        <div class="exchange-name">Gate</div>
+      </div>
+      <div class="exchange-card fade-in" style="--i:3">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/698/standard/bybit_spot.png" alt="Bybit" />
+        </div>
+        <div class="exchange-name">Bybit</div>
+      </div>
+      <div class="exchange-card fade-in" style="--i:4">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/23/standard/Coinbase_Coin_Primary.png" alt="Coinbase" />
+        </div>
+        <div class="exchange-name">Coinbase</div>
+      </div>
+      <div class="exchange-card fade-in" style="--i:5">
+        <div class="exchange-logo">
+          <img src="https://assets.coingecko.com/markets/images/540/standard/2023-07-25_21.47.43.jpg" alt="Bitget" />
+        </div>
+        <div class="exchange-name">Bitget</div>
+      </div>
+    </div>
+
+    <p class="fade-in" style="text-align:center;margin-top:28px;font-size:13px;color:var(--text-sec);">
+      ⚠ 仅需 <strong style="color:var(--text-var)">只读权限</strong>，App 无法执行任何交易或提现操作
+    </p>
+  </div>
+</section>
+
+
+<!-- ══════════ PRIVACY ══════════ -->
+<section id="privacy">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-tag">隐私安全</div>
+      <h2 class="section-title">你的密钥，只属于你</h2>
+    </div>
+
+    <div class="privacy-card fade-in">
+      <div>
+        <h3 class="privacy-title">本地优先，<span class="grad">零服务器</span></h3>
+        <p class="privacy-desc">
+          CryptoBox 采用本地优先架构。所有敏感数据存储在手机本地，
+          App 直接与交易所 API 通信，中间没有任何服务器中转。
+          即使我们的团队想看，也看不到你的任何数据。
+        </p>
+        <div class="privacy-points">
+          <div class="privacy-point">
+            <div class="check"></div>
+            <span>API 密钥通过 iOS Keychain / Android Keystore 硬件级加密</span>
+          </div>
+          <div class="privacy-point">
+            <div class="check"></div>
+            <span>无账号体系，无需注册，无个人信息收集</span>
+          </div>
+          <div class="privacy-point">
+            <div class="check"></div>
+            <span>App 直连交易所 API，数据不经过第三方服务器</span>
+          </div>
+          <div class="privacy-point">
+            <div class="check"></div>
+            <span>仅申请只读权限，从架构上杜绝资金风险</span>
+          </div>
+          <div class="privacy-point">
+            <div class="check"></div>
+            <span>开源透明，代码可审计</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lock-visual">
+        <div class="lock-ring">
+          <div class="lock-inner">🔒</div>
+        </div>
+        <div class="lock-label">Keychain · Keystore<br />硬件级密钥保护</div>
+        <div class="lock-tags">
+          <span class="lock-tag">AES-256</span>
+          <span class="lock-tag">只读 API</span>
+          <span class="lock-tag">零上传</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════ DOWNLOAD ══════════ -->
+<section id="download">
+  <div class="container">
+    <div class="fade-in">
+      <h2 class="download-title">立即开始<br /><span class="grad">掌控你的资产</span></h2>
+      <p class="download-sub">免费下载，无需注册，30 秒连接第一个交易所</p>
+    </div>
+
+    <div class="download-buttons fade-in">
+      <a href="./CryptoBox-v1.2.0.apk" class="btn-download btn-apk" download="CryptoBox-v1.2.0.apk">
+        <span class="btn-icon" aria-hidden="true">
+          <!-- Android robot (official silhouette, simplified & crisp) -->
+          <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#ffffff" d="M349.1 156.7c-5.5 0-10 4.5-10 10v96.6c0 5.5 4.5 10 10 10s10-4.5 10-10v-96.6c0-5.5-4.5-10-10-10zm-186.2 0c-5.5 0-10 4.5-10 10v96.6c0 5.5 4.5 10 10 10s10-4.5 10-10v-96.6c0-5.5-4.5-10-10-10zm205.6 11.8H143.5v125.8c0 8.3 6.7 15 15 15h22v52.8c0 11 8.9 19.9 19.9 19.9s19.9-8.9 19.9-19.9v-52.8h42.4v52.8c0 11 8.9 19.9 19.9 19.9s19.9-8.9 19.9-19.9v-52.8h51.2c8.3 0 15-6.7 15-15V168.5zM322 84.3l15-23.9c1.1-1.7.6-4-1.1-5.1-1.7-1.1-4-.6-5.1 1.1l-15.4 24.5c-17.6-7.3-37.5-11.4-58.4-11.4s-40.8 4.1-58.4 11.4l-15.4-24.5c-1.1-1.7-3.4-2.2-5.1-1.1-1.7 1.1-2.2 3.4-1.1 5.1l15 23.9c-32.1 16.1-53.5 46.3-53.5 80.9v4.3h225v-4.3c0-34.6-21.4-64.8-53.5-80.9zM197 137.5c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9zm118 0c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"/>
+          </svg>
+        </span>
+        <span class="btn-text">
+          <span class="btn-text-top">v1.2.0 · Android</span>
+          <span class="btn-text-main">下载 APK</span>
+        </span>
+      </a>
+      <div class="btn-download btn-ios" title="即将上线">
+        <span class="btn-icon" aria-hidden="true">
+          <!-- Apple logo (classic silhouette) -->
+          <svg viewBox="0 0 384 512" xmlns="http://www.w3.org/2000/svg">
+            <path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zM260.9 99.5c23.6-28 21.5-53.5 20.8-62.7-21 1.2-45.3 14.3-59.1 30.4-15.2 17.3-24.1 38.7-22.2 61.2 22.7 1.8 43.4-9.9 60.5-28.9z"/>
+          </svg>
+        </span>
+        <span class="btn-text">
+          <span class="btn-text-top">即将上线</span>
+          <span class="btn-text-main">App Store</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="download-note fade-in">
+      <span>✓ 完全免费</span>
+      <span>✓ 无需注册</span>
+      <span>✓ Android 7.0+</span>
+      <span>✓ 约 21 MB</span>
+    </div>
+
+    <p class="fade-in" style="margin-top:20px;font-size:12px;color:var(--text-sec);text-align:center;">
+      安装前请在手机设置中允许「安装未知来源应用」
+    </p>
+  </div>
+</section>
+
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="logo">
+        CryptoBox
+        <span style="font-size:12px;font-weight:400;color:var(--text-sec);margin-left:8px;">© 2025</span>
+      </div>
+      <ul class="footer-links">
+        <li><a href="#">隐私政策</a></li>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="mailto:lz3862680@gmail.com">联系我们</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+
+<!-- ══════════ JS ══════════ -->
+<script>
+  // Intersection Observer — fade-in on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  // ── Balance counter ──
+  const counterEl = document.getElementById('counter');
+  const target = 84231;
+  const duration = 1800;
+  const startDelay = 400;
+  let startTime = null;
+
+  function easeOutExpo(t) {
+    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+  }
+
+  function animateCounter(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const value = Math.floor(easeOutExpo(progress) * target);
+    counterEl.textContent = value.toLocaleString('en-US');
+    if (progress < 1) requestAnimationFrame(animateCounter);
+    else counterEl.textContent = target.toLocaleString('en-US');
+  }
+
+  setTimeout(() => requestAnimationFrame(animateCounter), startDelay);
+
+  // ── Live price simulation ──
+  const prices = [
+    { el: null, base: 54820, range: 120 },
+    { el: null, base: 14380, range: 80  },
+    { el: null, base: 15032, range: 60  },
+  ];
+
+  document.querySelectorAll('.h-val').forEach((el, i) => {
+    if (prices[i]) prices[i].el = el;
+  });
+
+  function tickPrices() {
+    let total = 0;
+    prices.forEach(p => {
+      if (!p.el) return;
+      const delta = (Math.random() - 0.48) * p.range;
+      p.base = Math.max(p.base + delta, p.base * 0.9);
+      const val = Math.round(p.base);
+      total += val;
+      p.el.textContent = '$' + val.toLocaleString('en-US');
+    });
+    if (counterEl) {
+      counterEl.textContent = total.toLocaleString('en-US');
+    }
+  }
+
+  // Start ticking after 4s, every 2.5s
+  setTimeout(() => setInterval(tickPrices, 2500), 4000);
+
+  // ── Exchange logo fallback on error
+  document.querySelectorAll('.exchange-logo img').forEach(img => {
+    img.addEventListener('error', function() {
+      const name = this.alt;
+      const initial = name.charAt(0).toUpperCase();
+      const colors = {
+        'Binance': '#F3BA2F', 'OKX': '#E1E2E7',
+        'Bybit': '#FFD600', 'Coinbase': '#0052FF',
+        'Gate': '#00C47A', 'Bitget': '#00C67C'
+      };
+      const color = colors[name] || '#06B6D4';
+      this.parentElement.innerHTML = `<span style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:${color}">${initial}</span>`;
+    });
+  });
+
+  // Nav active link highlight on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(section => {
+      if (window.scrollY >= section.offsetTop - 120) {
+        current = section.getAttribute('id');
+      }
+    });
+    navLinks.forEach(link => {
+      link.style.color = link.getAttribute('href') === `#${current}`
+        ? 'var(--text)' : '';
+    });
+  }, { passive: true });
+</script>
+
+</body>
+</html>
