@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../../core/exchanges/models/balance.dart';
 import '../../core/market/coingecko_provider.dart';
+import '../portfolio/models/exchange_holdings_group.dart';
 import '../portfolio/portfolio_provider.dart';
 import '../portfolio/portfolio_service.dart';
 
@@ -37,6 +39,23 @@ class DashboardAssetRow {
   });
 }
 
+/// 按来源（spot/earn/futures）拆分的子分组
+class DashboardSourceSubSection {
+  final BalanceSource source;
+  final String label; // 现货 / 理财 / 合约
+  final double totalValueUsd;
+  final double pctOfExchange;
+  final List<DashboardAssetRow> assets;
+
+  const DashboardSourceSubSection({
+    required this.source,
+    required this.label,
+    required this.totalValueUsd,
+    required this.pctOfExchange,
+    required this.assets,
+  });
+}
+
 /// 按交易所账户分组（可展开）
 class DashboardExchangeSection {
   final String accountId;
@@ -48,6 +67,9 @@ class DashboardExchangeSection {
   final double pctOfPortfolio;
   final List<DashboardAssetRow> assets;
 
+  /// 按来源拆分的子分组（可能为空，仅含一个，或多个）
+  final List<DashboardSourceSubSection> sourceSections;
+
   const DashboardExchangeSection({
     required this.accountId,
     required this.headerLabel,
@@ -57,6 +79,7 @@ class DashboardExchangeSection {
     required this.totalValueUsd,
     required this.pctOfPortfolio,
     required this.assets,
+    this.sourceSections = const [],
   });
 }
 
@@ -328,25 +351,42 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       }
     }
 
+    DashboardAssetRow rowFor(
+      AccountHoldingLine a,
+      double exchangeTotal,
+    ) {
+      final sym = a.symbol;
+      final pctEx = exchangeTotal > 0 ? a.valueUsd / exchangeTotal * 100 : 0.0;
+      final pctPort = grandTotal > 0 ? a.valueUsd / grandTotal * 100 : 0.0;
+      return DashboardAssetRow(
+        symbol: sym,
+        name: sym,
+        quantity: a.quantity,
+        priceUsd: a.priceUsd,
+        valueUsd: a.valueUsd,
+        change24hPercent: a.change24h ?? 0.0,
+        pctOfExchange: pctEx,
+        pctOfPortfolio: pctPort,
+        imageUrl: images[sym],
+        iconLetter: sym.isNotEmpty ? sym[0] : '?',
+        iconColor: _coinColorMap[sym] ?? _defaultCoinColor,
+      );
+    }
+
     final sections = groups.map((g) {
-      final rows = g.holdings.map((a) {
-        final sym = a.symbol;
-        final pctEx =
-            g.totalValueUsd > 0 ? a.valueUsd / g.totalValueUsd * 100 : 0.0;
-        final pctPort =
-            grandTotal > 0 ? a.valueUsd / grandTotal * 100 : 0.0;
-        return DashboardAssetRow(
-          symbol: sym,
-          name: sym,
-          quantity: a.quantity,
-          priceUsd: a.priceUsd,
-          valueUsd: a.valueUsd,
-          change24hPercent: a.change24h ?? 0.0,
-          pctOfExchange: pctEx,
-          pctOfPortfolio: pctPort,
-          imageUrl: images[sym],
-          iconLetter: sym.isNotEmpty ? sym[0] : '?',
-          iconColor: _coinColorMap[sym] ?? _defaultCoinColor,
+      final rows = g.holdings.map((a) => rowFor(a, g.totalValueUsd)).toList();
+
+      final subs = g.sourceGroups.map((sg) {
+        final subAssets =
+            sg.holdings.map((a) => rowFor(a, g.totalValueUsd)).toList();
+        return DashboardSourceSubSection(
+          source: sg.source,
+          label: _sourceLabel(sg.source),
+          totalValueUsd: sg.totalValueUsd,
+          pctOfExchange: g.totalValueUsd > 0
+              ? sg.totalValueUsd / g.totalValueUsd * 100
+              : 0.0,
+          assets: subAssets,
         );
       }).toList();
 
@@ -360,6 +400,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         pctOfPortfolio:
             grandTotal > 0 ? g.totalValueUsd / grandTotal * 100 : 0.0,
         assets: rows,
+        sourceSections: subs,
       );
     }).toList();
 
@@ -423,6 +464,17 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     return points.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value.value);
     }).toList();
+  }
+
+  static String _sourceLabel(BalanceSource s) {
+    switch (s) {
+      case BalanceSource.spot:
+        return '现货';
+      case BalanceSource.earn:
+        return '理财';
+      case BalanceSource.futures:
+        return '合约';
+    }
   }
 
   /// 格式化金额

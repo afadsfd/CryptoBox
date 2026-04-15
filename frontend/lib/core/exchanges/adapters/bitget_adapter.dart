@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/balance.dart';
@@ -127,10 +128,139 @@ class BitgetAdapter extends BaseExchangeAdapter {
             total: available + frozen,
             free: available,
             locked: frozen,
+            source: BalanceSource.spot,
           );
         })
         .where((b) => b.total > 0)
         .toList();
+  }
+
+  /// Bitget 合约账户：USDT-FUTURES / USDC-FUTURES / COIN-FUTURES
+  @override
+  Future<List<Balance>> getFuturesBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+    for (final productType in const [
+      'USDT-FUTURES',
+      'USDC-FUTURES',
+      'COIN-FUTURES',
+    ]) {
+      try {
+        final f = await _fetchFutures(
+            apiKey, apiSecret, passphrase ?? '', productType);
+        results.addAll(f);
+      } catch (e) {
+        debugPrint('[Bitget] futures $productType failed: $e');
+      }
+    }
+    return mergeBalances(results);
+  }
+
+  Future<List<Balance>> _fetchFutures(
+    String apiKey,
+    String apiSecret,
+    String passphrase,
+    String productType,
+  ) async {
+    final path =
+        '/api/v2/mix/account/accounts?productType=$productType';
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final headers = _buildHeaders(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      passphrase: passphrase,
+      timestamp: timestamp,
+      method: 'GET',
+      path: path,
+    );
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await http.get(uri, headers: headers).timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw ExchangeApiException(
+        exchangeId: exchangeId,
+        message: 'HTTP ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+      );
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final code = body['code']?.toString() ?? '';
+    if (code != '00000') return <Balance>[];
+    final data = body['data'] as List<dynamic>? ?? [];
+    return data
+        .map((item) {
+          final marginCoin = item['marginCoin']?.toString() ?? '';
+          final available =
+              double.tryParse(item['available']?.toString() ?? '0') ?? 0;
+          final locked =
+              double.tryParse(item['locked']?.toString() ?? '0') ?? 0;
+          final unrealizedPL = double.tryParse(
+                  item['unrealizedPL']?.toString() ?? '0') ??
+              0;
+          final equity = available + locked + unrealizedPL;
+          return Balance(
+            symbol: marginCoin,
+            total: equity,
+            free: available,
+            locked: locked,
+            source: BalanceSource.futures,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
+
+  /// Bitget 理财：活期/定期
+  @override
+  Future<List<Balance>> getEarnBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+    try {
+      const path = '/api/v2/earn/savings/assets';
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final headers = _buildHeaders(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        passphrase: passphrase ?? '',
+        timestamp: timestamp,
+        method: 'GET',
+        path: path,
+      );
+      final uri = Uri.parse('$baseUrl$path');
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['code']?.toString() == '00000') {
+          final data = body['data'] as List<dynamic>? ?? [];
+          for (final item in data) {
+            final coin = item['productCoin']?.toString() ??
+                item['coin']?.toString() ??
+                '';
+            final amount = double.tryParse(
+                    item['holdAmount']?.toString() ??
+                        item['amount']?.toString() ??
+                        '0') ??
+                0;
+            if (coin.isEmpty || amount <= 0) continue;
+            results.add(Balance(
+              symbol: coin,
+              total: amount,
+              free: 0,
+              locked: amount,
+              source: BalanceSource.earn,
+            ));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Bitget] earn savings failed: $e');
+    }
+    return mergeBalances(results);
   }
 
   @override

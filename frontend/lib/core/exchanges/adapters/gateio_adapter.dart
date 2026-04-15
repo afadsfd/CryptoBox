@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/balance.dart';
@@ -117,10 +118,99 @@ class GateioAdapter extends BaseExchangeAdapter {
             total: available + locked,
             free: available,
             locked: locked,
+            source: BalanceSource.spot,
           );
         })
         .where((b) => b.total > 0)
         .toList();
+  }
+
+  /// Gate.io 合约账户：U 本位 + BTC 本位
+  @override
+  Future<List<Balance>> getFuturesBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+    for (final settle in ['usdt', 'btc']) {
+      try {
+        final f = await _fetchFutures(apiKey, apiSecret, settle);
+        results.addAll(f);
+      } catch (e) {
+        debugPrint('[Gate.io] futures $settle failed: $e');
+      }
+    }
+    return mergeBalances(results);
+  }
+
+  Future<List<Balance>> _fetchFutures(
+      String apiKey, String apiSecret, String settle) async {
+    final path = '/api/v4/futures/$settle/accounts';
+    final headers = _buildHeaders(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      method: 'GET',
+      path: path,
+    );
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await http.get(uri, headers: headers).timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw ExchangeApiException(
+        exchangeId: exchangeId,
+        message: 'HTTP ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+      );
+    }
+    final data = jsonDecode(response.body);
+    if (data is! Map) return <Balance>[];
+    final currency = data['currency']?.toString() ?? settle.toUpperCase();
+    final total = double.tryParse(data['total']?.toString() ?? '0') ?? 0;
+    final unrealisedPnl =
+        double.tryParse(data['unrealised_pnl']?.toString() ?? '0') ?? 0;
+    final available =
+        double.tryParse(data['available']?.toString() ?? '0') ?? 0;
+    final net = total + unrealisedPnl;
+    if (net <= 0) return <Balance>[];
+    return [
+      Balance(
+        symbol: currency,
+        total: net,
+        free: available,
+        locked: net - available > 0 ? net - available : 0,
+        source: BalanceSource.futures,
+      ),
+    ];
+  }
+
+  /// Gate.io 理财：理财 / 借贷余额
+  @override
+  Future<List<Balance>> getEarnBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    // Gate.io 的理财接口较为分散（结构化、双币、借贷等），
+    // 优先拉取统一账户的总览余额作为补充。
+    try {
+      const path = '/api/v4/wallet/total_balance';
+      final headers = _buildHeaders(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        method: 'GET',
+        path: path,
+      );
+      final uri = Uri.parse('$baseUrl$path');
+      final response =
+          await http.get(uri, headers: headers).timeout(_timeout);
+      if (response.statusCode != 200) return <Balance>[];
+      // 此接口只返回总价值估算（USDT），不返回各币种明细，无法按币种入账。
+      // 保留为诊断用，不计入 getAllBalances。
+      return <Balance>[];
+    } catch (e) {
+      debugPrint('[Gate.io] earn failed: $e');
+      return <Balance>[];
+    }
   }
 
   @override

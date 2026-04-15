@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/router.dart';
 import '../../app/theme.dart';
+import '../../core/exchanges/models/balance.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/format_helper.dart';
 import '../../shared/widgets/sharp_network_image.dart';
@@ -696,12 +697,84 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               ],
             ),
-            children:
-                section.assets.map(_buildAssetRow).toList(),
+            children: _buildSectionChildren(section),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildSectionChildren(DashboardExchangeSection section) {
+    // 只有一个来源（或没有子分组）时，直接渲染资产行，保持原有紧凑布局
+    if (section.sourceSections.length <= 1) {
+      return section.assets.map(_buildAssetRow).toList();
+    }
+
+    final widgets = <Widget>[];
+    for (final sub in section.sourceSections) {
+      widgets.add(_buildSourceHeader(sub));
+      widgets.addAll(sub.assets.map(_buildAssetRow));
+    }
+    return widgets;
+  }
+
+  Widget _buildSourceHeader(DashboardSourceSubSection sub) {
+    final color = _sourceColor(sub.source);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+      child: Row(
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withAlpha(38),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withAlpha(90), width: 0.7),
+            ),
+            child: Text(
+              sub.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              FormatHelper.currency(sub.totalValueUsd),
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textOnSurface,
+              ),
+            ),
+          ),
+          Text(
+            '${sub.pctOfExchange.toStringAsFixed(1)}%',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textOnSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _sourceColor(BalanceSource s) {
+    switch (s) {
+      case BalanceSource.spot:
+        return AppTheme.accentCyan;
+      case BalanceSource.earn:
+        return const Color(0xFF22C55E); // green
+      case BalanceSource.futures:
+        return const Color(0xFFF59E0B); // amber
+    }
   }
 
   Widget _buildRoundExchangeLogo(

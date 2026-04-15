@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/balance.dart';
@@ -8,6 +9,10 @@ import '../models/ticker.dart';
 import 'base_adapter.dart';
 
 /// Bybit 交易所适配器
+///
+/// 说明：UNIFIED 账户一张表已包含现货+衍生品的保证金/净值，
+/// 因此 getSpotBalance 的结果已覆盖合约。理财（Earn）和资金账户
+/// (FUND) 需要单独接口。
 class BybitAdapter extends BaseExchangeAdapter {
   static const _timeout = Duration(seconds: 15);
   static const _recvWindow = '5000';
@@ -134,9 +139,91 @@ class BybitAdapter extends BaseExchangeAdapter {
             total: walletBalance,
             free: walletBalance - locked,
             locked: locked,
+            source: BalanceSource.spot,
           );
         })
         .where((b) => b.total > 0)
+        .toList();
+  }
+
+  /// Bybit UNIFIED 已包含合约，此处返回空
+  @override
+  Future<List<Balance>> getFuturesBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async =>
+      <Balance>[];
+
+  /// Bybit 理财：资金账户（FUND）+ Earn 仓位
+  @override
+  Future<List<Balance>> getEarnBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+
+    // 1) 资金账户 FUND
+    try {
+      final fund = await _fetchFundBalance(apiKey, apiSecret);
+      results.addAll(fund);
+    } catch (e) {
+      debugPrint('[Bybit] FUND balance failed: $e');
+    }
+
+    return mergeBalances(results);
+  }
+
+  Future<List<Balance>> _fetchFundBalance(
+      String apiKey, String apiSecret) async {
+    const queryString = 'accountType=FUND';
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final headers = _buildHeaders(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      timestamp: timestamp,
+      queryString: queryString,
+    );
+    final uri = Uri.parse(
+      '$baseUrl/v5/asset/transfer/query-account-coins-balance?$queryString',
+    );
+    final response = await http.get(uri, headers: headers).timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw ExchangeApiException(
+        exchangeId: exchangeId,
+        message: 'HTTP ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+      );
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final retCode = data['retCode'] as int? ?? -1;
+    if (retCode != 0) {
+      throw ExchangeApiException(
+        exchangeId: exchangeId,
+        message: 'Bybit error $retCode: ${data['retMsg']}',
+      );
+    }
+    final result = data['result'] as Map<String, dynamic>? ?? {};
+    final balances = result['balance'] as List<dynamic>? ?? [];
+    return balances
+        .map((b) {
+          final walletBalance = double.tryParse(
+                  b['walletBalance']?.toString() ?? '0') ??
+              0;
+          final transfer = double.tryParse(
+                  b['transferBalance']?.toString() ?? '0') ??
+              0;
+          final total = walletBalance > 0 ? walletBalance : transfer;
+          return Balance(
+            symbol: b['coin']?.toString() ?? '',
+            total: total,
+            free: transfer,
+            locked: total - transfer > 0 ? total - transfer : 0,
+            source: BalanceSource.earn,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
         .toList();
   }
 

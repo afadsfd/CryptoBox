@@ -91,6 +91,7 @@ class PortfolioService {
           quantity: bal.total,
           free: bal.free,
           locked: bal.locked,
+          source: bal.source,
         ));
       }
     }
@@ -215,6 +216,7 @@ class PortfolioService {
           priceUsd: h.priceUsd ?? 0,
           valueUsd: v,
           change24h: null,
+          source: _parseSource(h.source),
         ));
       }
 
@@ -230,10 +232,32 @@ class PortfolioService {
               priceUsd: a.priceUsd,
               valueUsd: a.valueUsd,
               change24h: cached[a.symbol]?.change24h,
+              source: a.source,
             ),
           )
           .toList()
         ..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+
+      // 按 source 拆分子组
+      final bySource = <BalanceSource, List<AccountHoldingLine>>{};
+      for (final line in withChg) {
+        bySource.putIfAbsent(line.source, () => []).add(line);
+      }
+      final subGroups = <SourceHoldingsSubGroup>[];
+      for (final src in const [
+        BalanceSource.spot,
+        BalanceSource.earn,
+        BalanceSource.futures,
+      ]) {
+        final lines = bySource[src];
+        if (lines == null || lines.isEmpty) continue;
+        final sub = lines.fold<double>(0, (s, l) => s + l.valueUsd);
+        subGroups.add(SourceHoldingsSubGroup(
+          source: src,
+          totalValueUsd: sub,
+          holdings: lines,
+        ));
+      }
 
       final info = ExchangeInfo.findById(acct.exchangeName);
       groups.add(ExchangeHoldingsGroup(
@@ -246,6 +270,7 @@ class PortfolioService {
         logoUrl: info?.logoUrl ?? '',
         totalValueUsd: total,
         holdings: withChg,
+        sourceGroups: subGroups,
       ));
     }
 
@@ -357,8 +382,8 @@ class PortfolioService {
         return;
       }
 
-      // 拉取余额
-      final balances = await adapter.getSpotBalance(
+      // 拉取余额（现货 + 理财 + 合约）
+      final balances = await adapter.getAllBalances(
         apiKey: creds['apiKey']!,
         apiSecret: creds['apiSecret']!,
         passphrase: creds['passphrase'],
@@ -371,12 +396,12 @@ class PortfolioService {
         symbols: symbols,
       );
 
-      // 构造 holdings 数据并写入
+      // 构造 holdings 数据并写入（带 source 区分）
       final entries = balances.map((b) {
         final sym = b.symbol.toUpperCase();
         final price = prices[sym] ?? 0;
         return HoldingsCompanion.insert(
-          id: '${account.id}_$sym',
+          id: '${account.id}_${sym}_${b.source.name}',
           exchangeAccountId: account.id,
           symbol: sym,
           quantity: Value(b.total),
@@ -384,6 +409,7 @@ class PortfolioService {
           locked: Value(b.locked),
           priceUsd: Value(price),
           valueUsd: Value(b.total * price),
+          source: Value(b.source.name),
           updatedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -452,7 +478,7 @@ class PortfolioService {
       throw Exception('No adapter for ${account.exchangeName}');
     }
 
-    final balances = await adapter.getSpotBalance(
+    final balances = await adapter.getAllBalances(
       apiKey: creds['apiKey']!,
       apiSecret: creds['apiSecret']!,
       passphrase: creds['passphrase'],
@@ -472,6 +498,7 @@ class PortfolioService {
               total: h.quantity,
               free: h.free,
               locked: h.locked,
+              source: _parseSource(h.source),
             ))
         .toList();
     return _AccountBalanceResult(account: account, balances: balances);
@@ -605,7 +632,7 @@ class PortfolioService {
       final entries = entry.value.map((h) {
         final price = prices[h.symbol] ?? 0;
         return HoldingsCompanion.insert(
-          id: '${accountId}_${h.symbol}',
+          id: '${accountId}_${h.symbol}_${h.source.name}',
           exchangeAccountId: accountId,
           symbol: h.symbol,
           quantity: Value(h.quantity),
@@ -613,6 +640,7 @@ class PortfolioService {
           locked: Value(h.locked),
           priceUsd: Value(price),
           valueUsd: Value(h.quantity * price),
+          source: Value(h.source.name),
           updatedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -665,6 +693,18 @@ class PortfolioService {
     }
   }
 
+  static BalanceSource _parseSource(String? s) {
+    switch (s) {
+      case 'earn':
+        return BalanceSource.earn;
+      case 'futures':
+        return BalanceSource.futures;
+      case 'spot':
+      default:
+        return BalanceSource.spot;
+    }
+  }
+
   static bool _isStablecoin(String symbol) {
     const stables = {'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'USDP', 'FRAX', 'LUSD'};
     return stables.contains(symbol.toUpperCase());
@@ -677,7 +717,7 @@ class PortfolioService {
 
 class _AccountBalanceResult {
   final ExchangeAccount account;
-  final List<BalanceLike> balances;
+  final List<Balance> balances;
 
   _AccountBalanceResult({required this.account, required this.balances});
 }
@@ -702,6 +742,7 @@ class _AccountHolding {
   final double quantity;
   final double free;
   final double locked;
+  final BalanceSource source;
 
   _AccountHolding({
     required this.accountId,
@@ -709,11 +750,12 @@ class _AccountHolding {
     required this.quantity,
     required this.free,
     required this.locked,
+    this.source = BalanceSource.spot,
   });
 }
 
-/// 缓存回退时的伪 Balance
-class _CachedBalance implements BalanceLike {
+/// 缓存回退时的伪 Balance（携带 source 信息）
+class _CachedBalance implements Balance {
   @override
   final String symbol;
   @override
@@ -722,13 +764,32 @@ class _CachedBalance implements BalanceLike {
   final double free;
   @override
   final double locked;
+  @override
+  final BalanceSource source;
 
   _CachedBalance({
     required this.symbol,
     required this.total,
     required this.free,
     required this.locked,
+    this.source = BalanceSource.spot,
   });
+
+  @override
+  Balance copyWith({
+    String? symbol,
+    double? total,
+    double? free,
+    double? locked,
+    BalanceSource? source,
+  }) =>
+      Balance(
+        symbol: symbol ?? this.symbol,
+        total: total ?? this.total,
+        free: free ?? this.free,
+        locked: locked ?? this.locked,
+        source: source ?? this.source,
+      );
 }
 
 /// 合并的 ticker 结果（价格 + 24h 涨跌）

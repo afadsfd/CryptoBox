@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import '../../../core/exchanges/models/balance.dart';
+
 /// 单个持仓项
 class HoldingItem {
   final String symbol;
@@ -11,6 +13,9 @@ class HoldingItem {
   /// 如果是单交易所持仓，此字段为交易所名称
   final String? exchangeName;
 
+  /// 资金来源（如按来源拆分展示时使用）
+  final BalanceSource? source;
+
   /// 图标颜色（UI 层使用）
   final Color? iconColor;
 
@@ -21,6 +26,7 @@ class HoldingItem {
     required this.valueUsd,
     this.change24h,
     this.exchangeName,
+    this.source,
     this.iconColor,
   });
 

@@ -109,12 +109,14 @@ class CoinbaseAdapter extends BaseExchangeAdapter {
           double.tryParse(availableBalance['value']?.toString() ?? '0') ?? 0;
 
       // Coinbase 只提供 available balance
+      // 注：此接口已覆盖现货 + 质押 + 赚币等所有 Coinbase 账户类型
       if (value > 0) {
         balances.add(Balance(
           symbol: currency,
           total: value,
           free: value,
           locked: 0,
+          source: BalanceSource.spot,
         ));
       }
     }

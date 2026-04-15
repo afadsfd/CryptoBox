@@ -34,6 +34,8 @@ class Holdings extends Table {
   RealColumn get locked => real().withDefault(const Constant(0.0))();
   RealColumn get priceUsd => real().nullable()();
   RealColumn get valueUsd => real().nullable()();
+  /// 资金来源：spot / earn / futures
+  TextColumn get source => text().withDefault(const Constant('spot'))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -69,5 +71,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // Holdings 表新增 source 列（默认 spot）
+            await m.addColumn(holdings, holdings.source);
+          }
+        },
+      );
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/balance.dart';
@@ -10,6 +11,8 @@ import 'base_adapter.dart';
 /// Binance 交易所适配器
 class BinanceAdapter extends BaseExchangeAdapter {
   static const _timeout = Duration(seconds: 15);
+  static const _fapiBase = 'https://fapi.binance.com'; // U 本位合约
+  static const _dapiBase = 'https://dapi.binance.com'; // 币本位合约
 
   @override
   String get exchangeId => 'binance';
@@ -46,16 +49,310 @@ class BinanceAdapter extends BaseExchangeAdapter {
     required String apiSecret,
     String? passphrase,
   }) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final queryString = 'timestamp=$timestamp';
-    final signature = _sign(queryString, apiSecret);
+    final data = await _signedGet(
+      host: baseUrl,
+      path: '/api/v3/account',
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+    ) as Map<String, dynamic>;
 
-    final uri = Uri.parse(
-      '$baseUrl/api/v3/account?$queryString&signature=$signature',
+    final balances = data['balances'] as List<dynamic>? ?? [];
+
+    return balances
+        .map((b) {
+          final free = double.tryParse(b['free']?.toString() ?? '0') ?? 0;
+          final locked =
+              double.tryParse(b['locked']?.toString() ?? '0') ?? 0;
+          return Balance(
+            symbol: b['asset'] as String? ?? '',
+            total: free + locked,
+            free: free,
+            locked: locked,
+            source: BalanceSource.spot,
+          );
+        })
+        .where((b) => b.total > 0)
+        .toList();
+  }
+
+  /// 理财账户（活期 Simple Earn Flexible + 定期 Locked）
+  @override
+  Future<List<Balance>> getEarnBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+
+    // 1) 活期理财 - Simple Earn Flexible Position
+    try {
+      final flexible = await _fetchEarnFlexible(apiKey, apiSecret);
+      results.addAll(flexible);
+    } catch (e) {
+      debugPrint('[Binance] earn flexible failed: $e');
+    }
+
+    // 2) 定期理财 - Simple Earn Locked Position
+    try {
+      final locked = await _fetchEarnLocked(apiKey, apiSecret);
+      results.addAll(locked);
+    } catch (e) {
+      debugPrint('[Binance] earn locked failed: $e');
+    }
+
+    // 3) 资金账户 (Funding Wallet) - 用于持有币赚币等
+    try {
+      final funding = await _fetchFundingWallet(apiKey, apiSecret);
+      results.addAll(funding);
+    } catch (e) {
+      debugPrint('[Binance] funding wallet failed: $e');
+    }
+
+    return mergeBalances(results);
+  }
+
+  /// 合约账户（U 本位 + 币本位）
+  @override
+  Future<List<Balance>> getFuturesBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+
+    // 1) U 本位合约 - /fapi/v2/balance
+    try {
+      final usdt = await _fetchUsdtMFutures(apiKey, apiSecret);
+      results.addAll(usdt);
+    } catch (e) {
+      debugPrint('[Binance] USDT-M futures failed: $e');
+    }
+
+    // 2) 币本位合约 - /dapi/v1/balance
+    try {
+      final coin = await _fetchCoinMFutures(apiKey, apiSecret);
+      results.addAll(coin);
+    } catch (e) {
+      debugPrint('[Binance] COIN-M futures failed: $e');
+    }
+
+    return mergeBalances(results);
+  }
+
+  // ============ Earn 细分 ============
+
+  Future<List<Balance>> _fetchEarnFlexible(
+      String apiKey, String apiSecret) async {
+    final list = <Balance>[];
+    int current = 1;
+    const size = 100;
+    while (true) {
+      final data = await _signedGet(
+        host: baseUrl,
+        path: '/sapi/v1/simple-earn/flexible/position',
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        params: {'current': '$current', 'size': '$size'},
+      ) as Map<String, dynamic>;
+      final rows = data['rows'] as List<dynamic>? ?? [];
+      for (final r in rows) {
+        final asset = r['asset']?.toString() ?? '';
+        final amount =
+            double.tryParse(r['totalAmount']?.toString() ?? '0') ?? 0;
+        if (asset.isEmpty || amount <= 0) continue;
+        list.add(Balance(
+          symbol: asset,
+          total: amount,
+          free: amount,
+          locked: 0,
+          source: BalanceSource.earn,
+        ));
+      }
+      final total = (data['total'] as num?)?.toInt() ?? 0;
+      if (current * size >= total || rows.isEmpty) break;
+      current++;
+      if (current > 20) break; // 安全阀
+    }
+    return list;
+  }
+
+  Future<List<Balance>> _fetchEarnLocked(
+      String apiKey, String apiSecret) async {
+    final list = <Balance>[];
+    int current = 1;
+    const size = 100;
+    while (true) {
+      final data = await _signedGet(
+        host: baseUrl,
+        path: '/sapi/v1/simple-earn/locked/position',
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        params: {'current': '$current', 'size': '$size'},
+      ) as Map<String, dynamic>;
+      final rows = data['rows'] as List<dynamic>? ?? [];
+      for (final r in rows) {
+        final asset = r['asset']?.toString() ?? '';
+        final amount = double.tryParse(r['amount']?.toString() ?? '0') ?? 0;
+        if (asset.isEmpty || amount <= 0) continue;
+        list.add(Balance(
+          symbol: asset,
+          total: amount,
+          free: 0,
+          locked: amount,
+          source: BalanceSource.earn,
+        ));
+      }
+      final total = (data['total'] as num?)?.toInt() ?? 0;
+      if (current * size >= total || rows.isEmpty) break;
+      current++;
+      if (current > 20) break;
+    }
+    return list;
+  }
+
+  Future<List<Balance>> _fetchFundingWallet(
+      String apiKey, String apiSecret) async {
+    // POST /sapi/v1/asset/get-funding-asset
+    final data = await _signedRequest(
+      host: baseUrl,
+      path: '/sapi/v1/asset/get-funding-asset',
+      method: 'POST',
+      apiKey: apiKey,
+      apiSecret: apiSecret,
     );
+    if (data is! List) return <Balance>[];
+    return data
+        .map((item) {
+          final asset = item['asset']?.toString() ?? '';
+          final free = double.tryParse(item['free']?.toString() ?? '0') ?? 0;
+          final locked =
+              double.tryParse(item['locked']?.toString() ?? '0') ?? 0;
+          final freeze =
+              double.tryParse(item['freeze']?.toString() ?? '0') ?? 0;
+          final total = free + locked + freeze;
+          return Balance(
+            symbol: asset,
+            total: total,
+            free: free,
+            locked: locked + freeze,
+            source: BalanceSource.earn,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
 
-    final response = await http
-        .get(uri, headers: {'X-MBX-APIKEY': apiKey}).timeout(_timeout);
+  // ============ Futures 细分 ============
+
+  Future<List<Balance>> _fetchUsdtMFutures(
+      String apiKey, String apiSecret) async {
+    // GET /fapi/v2/balance
+    final data = await _signedGet(
+      host: _fapiBase,
+      path: '/fapi/v2/balance',
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+    );
+    if (data is! List) return <Balance>[];
+    return data
+        .map((item) {
+          final asset = item['asset']?.toString() ?? '';
+          final balance =
+              double.tryParse(item['balance']?.toString() ?? '0') ?? 0;
+          final unpnl =
+              double.tryParse(item['crossUnPnl']?.toString() ?? '0') ?? 0;
+          final total = balance + unpnl; // 钱包净值 = 余额 + 未实现盈亏
+          return Balance(
+            symbol: asset,
+            total: total,
+            free: total,
+            locked: 0,
+            source: BalanceSource.futures,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<Balance>> _fetchCoinMFutures(
+      String apiKey, String apiSecret) async {
+    // GET /dapi/v1/balance
+    final data = await _signedGet(
+      host: _dapiBase,
+      path: '/dapi/v1/balance',
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+    );
+    if (data is! List) return <Balance>[];
+    return data
+        .map((item) {
+          final asset = item['asset']?.toString() ?? '';
+          final balance =
+              double.tryParse(item['balance']?.toString() ?? '0') ?? 0;
+          final unpnl =
+              double.tryParse(item['crossUnPnl']?.toString() ?? '0') ?? 0;
+          final total = balance + unpnl;
+          return Balance(
+            symbol: asset,
+            total: total,
+            free: total,
+            locked: 0,
+            source: BalanceSource.futures,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
+
+  // ============ HTTP helper ============
+
+  /// 签名 GET，返回已解析的 JSON（Map 或 List）
+  Future<dynamic> _signedGet({
+    required String host,
+    required String path,
+    required String apiKey,
+    required String apiSecret,
+    Map<String, String> params = const {},
+  }) async {
+    return _signedRequest(
+      host: host,
+      path: path,
+      method: 'GET',
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      params: params,
+    );
+  }
+
+  Future<dynamic> _signedRequest({
+    required String host,
+    required String path,
+    required String method,
+    required String apiKey,
+    required String apiSecret,
+    Map<String, String> params = const {},
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final allParams = <String, String>{
+      ...params,
+      'timestamp': timestamp,
+      'recvWindow': '10000',
+    };
+    final qs = allParams.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final sig = _sign(qs, apiSecret);
+    final finalQs = '$qs&signature=$sig';
+
+    final uri = Uri.parse('$host$path?$finalQs');
+    final headers = {'X-MBX-APIKEY': apiKey};
+
+    http.Response response;
+    if (method == 'POST') {
+      response = await http.post(uri, headers: headers).timeout(_timeout);
+    } else {
+      response = await http.get(uri, headers: headers).timeout(_timeout);
+    }
 
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw ExchangeAuthException(
@@ -73,23 +370,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
       );
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final balances = data['balances'] as List<dynamic>? ?? [];
-
-    return balances
-        .map((b) {
-          final free = double.tryParse(b['free']?.toString() ?? '0') ?? 0;
-          final locked =
-              double.tryParse(b['locked']?.toString() ?? '0') ?? 0;
-          return Balance(
-            symbol: b['asset'] as String,
-            total: free + locked,
-            free: free,
-            locked: locked,
-          );
-        })
-        .where((b) => b.total > 0)
-        .toList();
+    return jsonDecode(response.body);
   }
 
   @override

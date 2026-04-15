@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/balance.dart';
@@ -8,6 +9,10 @@ import '../models/ticker.dart';
 import 'base_adapter.dart';
 
 /// OKX 交易所适配器
+///
+/// 说明：OKX 的统一交易账户（Unified Trading Account）一张表已经同时包含
+/// 现货、合约、杠杆、期权的保证金与净值，因此现货方法的结果已覆盖合约账户。
+/// 理财（活期/定期 Savings）属于资金账户 + 金融产品，需要额外接口获取。
 class OkxAdapter extends BaseExchangeAdapter {
   static const _timeout = Duration(seconds: 15);
 
@@ -126,10 +131,129 @@ class OkxAdapter extends BaseExchangeAdapter {
             total: availBal + frozenBal,
             free: availBal,
             locked: frozenBal,
+            source: BalanceSource.spot,
           );
         })
         .where((b) => b.total > 0)
         .toList();
+  }
+
+  /// OKX 统一账户已包含合约，无需单独获取
+  @override
+  Future<List<Balance>> getFuturesBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async =>
+      <Balance>[];
+
+  /// OKX 理财（活期 Savings + 资金账户 + 结构化产品）
+  @override
+  Future<List<Balance>> getEarnBalance({
+    required String apiKey,
+    required String apiSecret,
+    String? passphrase,
+  }) async {
+    final results = <Balance>[];
+
+    // 1) 活期/定期 Savings - /api/v5/finance/savings/balance
+    try {
+      final savings = await _fetchSavings(apiKey, apiSecret, passphrase ?? '');
+      results.addAll(savings);
+    } catch (e) {
+      debugPrint('[OKX] savings failed: $e');
+    }
+
+    // 2) 资金账户 - /api/v5/asset/balances
+    try {
+      final funding =
+          await _fetchFunding(apiKey, apiSecret, passphrase ?? '');
+      results.addAll(funding);
+    } catch (e) {
+      debugPrint('[OKX] funding failed: $e');
+    }
+
+    return mergeBalances(results);
+  }
+
+  Future<List<Balance>> _fetchSavings(
+      String apiKey, String apiSecret, String passphrase) async {
+    const path = '/api/v5/finance/savings/balance';
+    final response = await _signedGet(apiKey, apiSecret, passphrase, path);
+    final data = response['data'] as List<dynamic>? ?? [];
+    return data
+        .map((item) {
+          final amt =
+              double.tryParse(item['amt']?.toString() ?? '0') ?? 0;
+          return Balance(
+            symbol: item['ccy']?.toString() ?? '',
+            total: amt,
+            free: 0,
+            locked: amt,
+            source: BalanceSource.earn,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<Balance>> _fetchFunding(
+      String apiKey, String apiSecret, String passphrase) async {
+    const path = '/api/v5/asset/balances';
+    final response = await _signedGet(apiKey, apiSecret, passphrase, path);
+    final data = response['data'] as List<dynamic>? ?? [];
+    return data
+        .map((item) {
+          final bal =
+              double.tryParse(item['bal']?.toString() ?? '0') ?? 0;
+          final frozen =
+              double.tryParse(item['frozenBal']?.toString() ?? '0') ?? 0;
+          final avail =
+              double.tryParse(item['availBal']?.toString() ?? '0') ?? 0;
+          return Balance(
+            symbol: item['ccy']?.toString() ?? '',
+            total: bal > 0 ? bal : (avail + frozen),
+            free: avail,
+            locked: frozen,
+            source: BalanceSource.earn,
+          );
+        })
+        .where((b) => b.total > 0 && b.symbol.isNotEmpty)
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> _signedGet(
+    String apiKey,
+    String apiSecret,
+    String passphrase,
+    String path,
+  ) async {
+    final timestamp = _getTimestamp();
+    final headers = _buildHeaders(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      passphrase: passphrase,
+      timestamp: timestamp,
+      method: 'GET',
+      path: path,
+    );
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await http.get(uri, headers: headers).timeout(_timeout);
+    if (response.statusCode == 401) {
+      throw ExchangeAuthException(
+        exchangeId: exchangeId,
+        message: 'Invalid API credentials',
+        statusCode: response.statusCode,
+      );
+    }
+    if (response.statusCode != 200) {
+      throw ExchangeApiException(
+        exchangeId: exchangeId,
+        message: 'HTTP ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   @override

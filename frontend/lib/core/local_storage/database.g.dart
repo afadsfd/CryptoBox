@@ -597,6 +597,13 @@ class $HoldingsTable extends Holdings with TableInfo<$HoldingsTable, Holding> {
   late final GeneratedColumn<double> valueUsd = GeneratedColumn<double>(
       'value_usd', aliasedName, true,
       type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+      'source', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('spot'));
   static const VerificationMeta _updatedAtMeta =
       const VerificationMeta('updatedAt');
   @override
@@ -615,6 +622,7 @@ class $HoldingsTable extends Holdings with TableInfo<$HoldingsTable, Holding> {
         locked,
         priceUsd,
         valueUsd,
+        source,
         updatedAt
       ];
   @override
@@ -666,6 +674,10 @@ class $HoldingsTable extends Holdings with TableInfo<$HoldingsTable, Holding> {
       context.handle(_valueUsdMeta,
           valueUsd.isAcceptableOrUnknown(data['value_usd']!, _valueUsdMeta));
     }
+    if (data.containsKey('source')) {
+      context.handle(_sourceMeta,
+          source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
+    }
     if (data.containsKey('updated_at')) {
       context.handle(_updatedAtMeta,
           updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
@@ -695,6 +707,8 @@ class $HoldingsTable extends Holdings with TableInfo<$HoldingsTable, Holding> {
           .read(DriftSqlType.double, data['${effectivePrefix}price_usd']),
       valueUsd: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}value_usd']),
+      source: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source'])!,
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
@@ -715,6 +729,9 @@ class Holding extends DataClass implements Insertable<Holding> {
   final double locked;
   final double? priceUsd;
   final double? valueUsd;
+
+  /// 资金来源：spot / earn / futures
+  final String source;
   final DateTime updatedAt;
   const Holding(
       {required this.id,
@@ -725,6 +742,7 @@ class Holding extends DataClass implements Insertable<Holding> {
       required this.locked,
       this.priceUsd,
       this.valueUsd,
+      required this.source,
       required this.updatedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -741,6 +759,7 @@ class Holding extends DataClass implements Insertable<Holding> {
     if (!nullToAbsent || valueUsd != null) {
       map['value_usd'] = Variable<double>(valueUsd);
     }
+    map['source'] = Variable<String>(source);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -759,6 +778,7 @@ class Holding extends DataClass implements Insertable<Holding> {
       valueUsd: valueUsd == null && nullToAbsent
           ? const Value.absent()
           : Value(valueUsd),
+      source: Value(source),
       updatedAt: Value(updatedAt),
     );
   }
@@ -775,6 +795,7 @@ class Holding extends DataClass implements Insertable<Holding> {
       locked: serializer.fromJson<double>(json['locked']),
       priceUsd: serializer.fromJson<double?>(json['priceUsd']),
       valueUsd: serializer.fromJson<double?>(json['valueUsd']),
+      source: serializer.fromJson<String>(json['source']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -790,6 +811,7 @@ class Holding extends DataClass implements Insertable<Holding> {
       'locked': serializer.toJson<double>(locked),
       'priceUsd': serializer.toJson<double?>(priceUsd),
       'valueUsd': serializer.toJson<double?>(valueUsd),
+      'source': serializer.toJson<String>(source),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -803,6 +825,7 @@ class Holding extends DataClass implements Insertable<Holding> {
           double? locked,
           Value<double?> priceUsd = const Value.absent(),
           Value<double?> valueUsd = const Value.absent(),
+          String? source,
           DateTime? updatedAt}) =>
       Holding(
         id: id ?? this.id,
@@ -813,6 +836,7 @@ class Holding extends DataClass implements Insertable<Holding> {
         locked: locked ?? this.locked,
         priceUsd: priceUsd.present ? priceUsd.value : this.priceUsd,
         valueUsd: valueUsd.present ? valueUsd.value : this.valueUsd,
+        source: source ?? this.source,
         updatedAt: updatedAt ?? this.updatedAt,
       );
   Holding copyWithCompanion(HoldingsCompanion data) {
@@ -827,6 +851,7 @@ class Holding extends DataClass implements Insertable<Holding> {
       locked: data.locked.present ? data.locked.value : this.locked,
       priceUsd: data.priceUsd.present ? data.priceUsd.value : this.priceUsd,
       valueUsd: data.valueUsd.present ? data.valueUsd.value : this.valueUsd,
+      source: data.source.present ? data.source.value : this.source,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -842,6 +867,7 @@ class Holding extends DataClass implements Insertable<Holding> {
           ..write('locked: $locked, ')
           ..write('priceUsd: $priceUsd, ')
           ..write('valueUsd: $valueUsd, ')
+          ..write('source: $source, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -849,7 +875,7 @@ class Holding extends DataClass implements Insertable<Holding> {
 
   @override
   int get hashCode => Object.hash(id, exchangeAccountId, symbol, quantity, free,
-      locked, priceUsd, valueUsd, updatedAt);
+      locked, priceUsd, valueUsd, source, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -862,6 +888,7 @@ class Holding extends DataClass implements Insertable<Holding> {
           other.locked == this.locked &&
           other.priceUsd == this.priceUsd &&
           other.valueUsd == this.valueUsd &&
+          other.source == this.source &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -874,6 +901,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
   final Value<double> locked;
   final Value<double?> priceUsd;
   final Value<double?> valueUsd;
+  final Value<String> source;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const HoldingsCompanion({
@@ -885,6 +913,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
     this.locked = const Value.absent(),
     this.priceUsd = const Value.absent(),
     this.valueUsd = const Value.absent(),
+    this.source = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -897,6 +926,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
     this.locked = const Value.absent(),
     this.priceUsd = const Value.absent(),
     this.valueUsd = const Value.absent(),
+    this.source = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -911,6 +941,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
     Expression<double>? locked,
     Expression<double>? priceUsd,
     Expression<double>? valueUsd,
+    Expression<String>? source,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -923,6 +954,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
       if (locked != null) 'locked': locked,
       if (priceUsd != null) 'price_usd': priceUsd,
       if (valueUsd != null) 'value_usd': valueUsd,
+      if (source != null) 'source': source,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -937,6 +969,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
       Value<double>? locked,
       Value<double?>? priceUsd,
       Value<double?>? valueUsd,
+      Value<String>? source,
       Value<DateTime>? updatedAt,
       Value<int>? rowid}) {
     return HoldingsCompanion(
@@ -948,6 +981,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
       locked: locked ?? this.locked,
       priceUsd: priceUsd ?? this.priceUsd,
       valueUsd: valueUsd ?? this.valueUsd,
+      source: source ?? this.source,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -980,6 +1014,9 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
     if (valueUsd.present) {
       map['value_usd'] = Variable<double>(valueUsd.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1000,6 +1037,7 @@ class HoldingsCompanion extends UpdateCompanion<Holding> {
           ..write('locked: $locked, ')
           ..write('priceUsd: $priceUsd, ')
           ..write('valueUsd: $valueUsd, ')
+          ..write('source: $source, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -1883,6 +1921,7 @@ typedef $$HoldingsTableCreateCompanionBuilder = HoldingsCompanion Function({
   Value<double> locked,
   Value<double?> priceUsd,
   Value<double?> valueUsd,
+  Value<String> source,
   Value<DateTime> updatedAt,
   Value<int> rowid,
 });
@@ -1895,6 +1934,7 @@ typedef $$HoldingsTableUpdateCompanionBuilder = HoldingsCompanion Function({
   Value<double> locked,
   Value<double?> priceUsd,
   Value<double?> valueUsd,
+  Value<String> source,
   Value<DateTime> updatedAt,
   Value<int> rowid,
 });
@@ -1950,6 +1990,9 @@ class $$HoldingsTableFilterComposer
   ColumnFilters<double> get valueUsd => $composableBuilder(
       column: $table.valueUsd, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 
@@ -2004,6 +2047,9 @@ class $$HoldingsTableOrderingComposer
   ColumnOrderings<double> get valueUsd => $composableBuilder(
       column: $table.valueUsd, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 
@@ -2057,6 +2103,9 @@ class $$HoldingsTableAnnotationComposer
 
   GeneratedColumn<double> get valueUsd =>
       $composableBuilder(column: $table.valueUsd, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -2113,6 +2162,7 @@ class $$HoldingsTableTableManager extends RootTableManager<
             Value<double> locked = const Value.absent(),
             Value<double?> priceUsd = const Value.absent(),
             Value<double?> valueUsd = const Value.absent(),
+            Value<String> source = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2125,6 +2175,7 @@ class $$HoldingsTableTableManager extends RootTableManager<
             locked: locked,
             priceUsd: priceUsd,
             valueUsd: valueUsd,
+            source: source,
             updatedAt: updatedAt,
             rowid: rowid,
           ),
@@ -2137,6 +2188,7 @@ class $$HoldingsTableTableManager extends RootTableManager<
             Value<double> locked = const Value.absent(),
             Value<double?> priceUsd = const Value.absent(),
             Value<double?> valueUsd = const Value.absent(),
+            Value<String> source = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2149,6 +2201,7 @@ class $$HoldingsTableTableManager extends RootTableManager<
             locked: locked,
             priceUsd: priceUsd,
             valueUsd: valueUsd,
+            source: source,
             updatedAt: updatedAt,
             rowid: rowid,
           ),
