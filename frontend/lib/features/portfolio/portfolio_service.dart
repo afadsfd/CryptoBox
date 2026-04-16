@@ -154,6 +154,55 @@ class PortfolioService {
   }
 
   // =========================================================================
+  // getPortfolioSummaryFromCache（纯 DB，秒出）
+  // =========================================================================
+
+  /// 纯本地读取，不发任何网络请求——用于 App 启动时先展示缓存数据
+  Future<PortfolioSummary> getPortfolioSummaryFromCache() async {
+    final accounts = await exchangeRepository.getActiveAccounts();
+    if (accounts.isEmpty) return PortfolioSummary.empty();
+
+    final allHoldings = await holdingRepository.getAll();
+    if (allHoldings.isEmpty) return PortfolioSummary.empty();
+
+    // 合并同 symbol 的 value
+    final merged = <String, double>{};
+    double totalValueUsd = 0;
+    for (final h in allHoldings) {
+      final v = h.valueUsd ?? 0;
+      if (v < _dustThreshold) continue;
+      totalValueUsd += v;
+      merged[h.symbol.toUpperCase()] = (merged[h.symbol.toUpperCase()] ?? 0) + v;
+    }
+
+    // 读取缓存的 24h 涨跌
+    final symbols = merged.keys.toList();
+    final cachedPrices = await priceCacheRepository.getValidPrices(symbols);
+    double change24hUsd = 0;
+    for (final entry in merged.entries) {
+      final chgPct = cachedPrices[entry.key]?.change24h ?? 0;
+      final val = entry.value;
+      if (chgPct != 0 && (1 + chgPct / 100).abs() > 1e-9) {
+        final valYesterday = val / (1 + chgPct / 100);
+        change24hUsd += val - valYesterday;
+      }
+    }
+    final yesterdayValue = totalValueUsd - change24hUsd;
+    final change24hPercent =
+        yesterdayValue.abs() > totalValueUsd * 0.001
+            ? change24hUsd / yesterdayValue * 100
+            : 0.0;
+
+    return PortfolioSummary(
+      totalValueUsd: totalValueUsd,
+      change24hUsd: change24hUsd,
+      change24hPercent: change24hPercent,
+      connectedExchanges: accounts.length,
+      totalHoldings: merged.length,
+    );
+  }
+
+  // =========================================================================
   // getHoldings
   // =========================================================================
 
@@ -199,10 +248,29 @@ class PortfolioService {
     final accounts = await exchangeRepository.getAllAccounts();
     if (accounts.isEmpty) return [];
 
+    // 并发查询所有账户的 holdings（而非逐个 await）
+    final allRows = await Future.wait(
+      accounts.map((a) => holdingRepository.getByExchangeId(a.id)),
+    );
+
+    // 收集全部 symbol，一次性拉取 24h 缓存
+    final allSymbols = <String>{};
+    for (final rows in allRows) {
+      for (final h in rows) {
+        if ((h.valueUsd ?? 0) >= _dustThreshold) {
+          allSymbols.add(h.symbol.toUpperCase());
+        }
+      }
+    }
+    final cached = allSymbols.isNotEmpty
+        ? await priceCacheRepository.getValidPrices(allSymbols.toList())
+        : <String, PriceCacheData>{};
+
     final groups = <ExchangeHoldingsGroup>[];
 
-    for (final acct in accounts) {
-      final rows = await holdingRepository.getByExchangeId(acct.id);
+    for (var i = 0; i < accounts.length; i++) {
+      final acct = accounts[i];
+      final rows = allRows[i];
       final rawLines = <AccountHoldingLine>[];
       var total = 0.0;
 
@@ -221,9 +289,6 @@ class PortfolioService {
       }
 
       if (rawLines.isEmpty) continue;
-
-      final symbols = rawLines.map((a) => a.symbol).toList();
-      final cached = await priceCacheRepository.getValidPrices(symbols);
       final withChg = rawLines
           .map(
             (a) => AccountHoldingLine(
@@ -305,17 +370,18 @@ class PortfolioService {
     final accounts = await exchangeRepository.getAllAccounts();
     if (accounts.isEmpty) return [];
 
-    // 计算每个交易所的总资产
+    // 并发计算每个交易所的总资产
+    final allHoldings = await Future.wait(
+      accounts.map((a) => holdingRepository.getByExchangeId(a.id)),
+    );
     double grandTotal = 0;
     final sourceValues = <String, double>{};
-
-    for (final acct in accounts) {
-      final holdings = await holdingRepository.getByExchangeId(acct.id);
+    for (var i = 0; i < accounts.length; i++) {
       double acctValue = 0;
-      for (final h in holdings) {
+      for (final h in allHoldings[i]) {
         acctValue += h.valueUsd ?? 0;
       }
-      sourceValues[acct.id] = acctValue;
+      sourceValues[accounts[i].id] = acctValue;
       grandTotal += acctValue;
     }
 

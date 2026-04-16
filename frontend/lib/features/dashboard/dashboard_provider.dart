@@ -242,29 +242,49 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     loadDashboard();
   }
 
+  /// 两阶段加载：
+  ///  Phase 1 — 纯 DB 缓存读取，秒渲染上次数据
+  ///  Phase 2 — 后台网络同步，完成后自动刷新 UI
   Future<void> loadDashboard() async {
     state = state.copyWith(isLoading: true, error: null);
 
-    String? criticalError;
+    // ─── Phase 1: 从本地 DB 秒出 ───
+    try {
+      await Future.wait([
+        _loadSummaryFromCache(),
+        _loadHistory(state.selectedPeriod),
+        _loadHoldings(),
+        _loadSources(),
+      ]);
+    } catch (e) {
+      debugPrint('Dashboard: cache load failed: $e');
+    }
 
-    await Future.wait([
-      _loadSummary().catchError((Object e) {
-        debugPrint('Dashboard: summary load failed: $e');
-        criticalError ??= _humanizeError(e);
-      }),
-      _loadHistory(state.selectedPeriod),
-      _loadHoldings().catchError((Object e) {
-        debugPrint('Dashboard: holdings load failed: $e');
-        criticalError ??= _humanizeError(e);
-      }),
-      _loadSources(),
-    ]);
-
+    // 缓存数据就绪 → 立即渲染，不再 loading
     state = state.copyWith(
       isLoading: false,
       hasLoadedOnce: true,
-      error: criticalError,
     );
+
+    // ─── Phase 2: 后台静默网络同步 ───
+    _backgroundSync();
+  }
+
+  /// 后台同步：拉取网络数据 → 写 DB → 刷新 UI（不 block 用户交互）
+  Future<void> _backgroundSync() async {
+    try {
+      // 网络拉取 + 写 DB
+      await _loadSummary();
+
+      // 同步完成，用最新数据再刷一次 holdings / sources
+      await Future.wait([
+        _loadHoldings(),
+        _loadSources(),
+      ]);
+    } catch (e) {
+      debugPrint('Dashboard: background sync failed: $e');
+      // 静默失败，用户已经看到缓存数据了
+    }
   }
 
   String _humanizeError(Object e) {
@@ -280,9 +300,19 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     return 'Unable to load data. Please try again.';
   }
 
+  /// 纯 DB 读取摘要（不发网络请求）
+  Future<void> _loadSummaryFromCache() async {
+    final summary = await _portfolioService.getPortfolioSummaryFromCache();
+    state = state.copyWith(
+      totalValue: summary.totalValueUsd,
+      change24h: summary.change24hUsd,
+      changePercent: summary.change24hPercent,
+    );
+  }
+
+  /// 网络拉取最新余额 + 价格 → 写入 DB → 更新 state
   Future<void> _loadSummary() async {
     final summary = await _portfolioService.getPortfolioSummary();
-
     state = state.copyWith(
       totalValue: summary.totalValueUsd,
       change24h: summary.change24hUsd,
@@ -443,9 +473,34 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     }
   }
 
-  /// 刷新数据
+  /// 手动刷新：显示 loading → 网络同步 → 刷新 UI
   Future<void> refresh() async {
-    await loadDashboard();
+    state = state.copyWith(isLoading: true, error: null);
+
+    String? criticalError;
+    try {
+      await _loadSummary();
+    } catch (e) {
+      debugPrint('Dashboard: refresh summary failed: $e');
+      criticalError = _humanizeError(e);
+    }
+
+    try {
+      await Future.wait([
+        _loadHistory(state.selectedPeriod),
+        _loadHoldings(),
+        _loadSources(),
+      ]);
+    } catch (e) {
+      debugPrint('Dashboard: refresh secondary data failed: $e');
+      criticalError ??= _humanizeError(e);
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      hasLoadedOnce: true,
+      error: criticalError,
+    );
   }
 
   /// 切换时间周期
