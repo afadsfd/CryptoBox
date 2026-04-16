@@ -55,6 +55,8 @@ class PriceCache extends Table {
   TextColumn get symbol => text()();
   RealColumn get priceUsd => real()();
   RealColumn get change24h => real().withDefault(const Constant(0.0))();
+  /// 币种图标 URL（CoinGecko small image），持久化后 App 重启秒出
+  TextColumn get imageUrl => text().nullable()();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -71,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -80,6 +82,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             // Holdings 表新增 source 列（默认 spot）
             await m.addColumn(holdings, holdings.source);
+          }
+          if (from < 3) {
+            // PriceCache 表新增 imageUrl 列
+            await m.addColumn(priceCache, priceCache.imageUrl);
           }
         },
       );

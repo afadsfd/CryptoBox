@@ -1310,6 +1310,12 @@ class $PriceCacheTable extends PriceCache
       type: DriftSqlType.double,
       requiredDuringInsert: false,
       defaultValue: const Constant(0.0));
+  static const VerificationMeta _imageUrlMeta =
+      const VerificationMeta('imageUrl');
+  @override
+  late final GeneratedColumn<String> imageUrl = GeneratedColumn<String>(
+      'image_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _updatedAtMeta =
       const VerificationMeta('updatedAt');
   @override
@@ -1320,7 +1326,7 @@ class $PriceCacheTable extends PriceCache
       defaultValue: currentDateAndTime);
   @override
   List<GeneratedColumn> get $columns =>
-      [symbol, priceUsd, change24h, updatedAt];
+      [symbol, priceUsd, change24h, imageUrl, updatedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1347,6 +1353,10 @@ class $PriceCacheTable extends PriceCache
       context.handle(_change24hMeta,
           change24h.isAcceptableOrUnknown(data['change24h']!, _change24hMeta));
     }
+    if (data.containsKey('image_url')) {
+      context.handle(_imageUrlMeta,
+          imageUrl.isAcceptableOrUnknown(data['image_url']!, _imageUrlMeta));
+    }
     if (data.containsKey('updated_at')) {
       context.handle(_updatedAtMeta,
           updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
@@ -1366,6 +1376,8 @@ class $PriceCacheTable extends PriceCache
           .read(DriftSqlType.double, data['${effectivePrefix}price_usd'])!,
       change24h: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}change24h'])!,
+      imageUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}image_url']),
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
@@ -1381,11 +1393,15 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
   final String symbol;
   final double priceUsd;
   final double change24h;
+
+  /// 币种图标 URL（CoinGecko small image），持久化后 App 重启秒出
+  final String? imageUrl;
   final DateTime updatedAt;
   const PriceCacheData(
       {required this.symbol,
       required this.priceUsd,
       required this.change24h,
+      this.imageUrl,
       required this.updatedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1393,6 +1409,9 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
     map['symbol'] = Variable<String>(symbol);
     map['price_usd'] = Variable<double>(priceUsd);
     map['change24h'] = Variable<double>(change24h);
+    if (!nullToAbsent || imageUrl != null) {
+      map['image_url'] = Variable<String>(imageUrl);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1402,6 +1421,9 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
       symbol: Value(symbol),
       priceUsd: Value(priceUsd),
       change24h: Value(change24h),
+      imageUrl: imageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUrl),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1413,6 +1435,7 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
       symbol: serializer.fromJson<String>(json['symbol']),
       priceUsd: serializer.fromJson<double>(json['priceUsd']),
       change24h: serializer.fromJson<double>(json['change24h']),
+      imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1423,6 +1446,7 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
       'symbol': serializer.toJson<String>(symbol),
       'priceUsd': serializer.toJson<double>(priceUsd),
       'change24h': serializer.toJson<double>(change24h),
+      'imageUrl': serializer.toJson<String?>(imageUrl),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1431,11 +1455,13 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
           {String? symbol,
           double? priceUsd,
           double? change24h,
+          Value<String?> imageUrl = const Value.absent(),
           DateTime? updatedAt}) =>
       PriceCacheData(
         symbol: symbol ?? this.symbol,
         priceUsd: priceUsd ?? this.priceUsd,
         change24h: change24h ?? this.change24h,
+        imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
         updatedAt: updatedAt ?? this.updatedAt,
       );
   PriceCacheData copyWithCompanion(PriceCacheCompanion data) {
@@ -1443,6 +1469,7 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
       symbol: data.symbol.present ? data.symbol.value : this.symbol,
       priceUsd: data.priceUsd.present ? data.priceUsd.value : this.priceUsd,
       change24h: data.change24h.present ? data.change24h.value : this.change24h,
+      imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1453,13 +1480,15 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
           ..write('symbol: $symbol, ')
           ..write('priceUsd: $priceUsd, ')
           ..write('change24h: $change24h, ')
+          ..write('imageUrl: $imageUrl, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(symbol, priceUsd, change24h, updatedAt);
+  int get hashCode =>
+      Object.hash(symbol, priceUsd, change24h, imageUrl, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1467,6 +1496,7 @@ class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
           other.symbol == this.symbol &&
           other.priceUsd == this.priceUsd &&
           other.change24h == this.change24h &&
+          other.imageUrl == this.imageUrl &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1474,12 +1504,14 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
   final Value<String> symbol;
   final Value<double> priceUsd;
   final Value<double> change24h;
+  final Value<String?> imageUrl;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const PriceCacheCompanion({
     this.symbol = const Value.absent(),
     this.priceUsd = const Value.absent(),
     this.change24h = const Value.absent(),
+    this.imageUrl = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1487,6 +1519,7 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
     required String symbol,
     required double priceUsd,
     this.change24h = const Value.absent(),
+    this.imageUrl = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : symbol = Value(symbol),
@@ -1495,6 +1528,7 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
     Expression<String>? symbol,
     Expression<double>? priceUsd,
     Expression<double>? change24h,
+    Expression<String>? imageUrl,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -1502,6 +1536,7 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
       if (symbol != null) 'symbol': symbol,
       if (priceUsd != null) 'price_usd': priceUsd,
       if (change24h != null) 'change24h': change24h,
+      if (imageUrl != null) 'image_url': imageUrl,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1511,12 +1546,14 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
       {Value<String>? symbol,
       Value<double>? priceUsd,
       Value<double>? change24h,
+      Value<String?>? imageUrl,
       Value<DateTime>? updatedAt,
       Value<int>? rowid}) {
     return PriceCacheCompanion(
       symbol: symbol ?? this.symbol,
       priceUsd: priceUsd ?? this.priceUsd,
       change24h: change24h ?? this.change24h,
+      imageUrl: imageUrl ?? this.imageUrl,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1534,6 +1571,9 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
     if (change24h.present) {
       map['change24h'] = Variable<double>(change24h.value);
     }
+    if (imageUrl.present) {
+      map['image_url'] = Variable<String>(imageUrl.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1549,6 +1589,7 @@ class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
           ..write('symbol: $symbol, ')
           ..write('priceUsd: $priceUsd, ')
           ..write('change24h: $change24h, ')
+          ..write('imageUrl: $imageUrl, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2410,6 +2451,7 @@ typedef $$PriceCacheTableCreateCompanionBuilder = PriceCacheCompanion Function({
   required String symbol,
   required double priceUsd,
   Value<double> change24h,
+  Value<String?> imageUrl,
   Value<DateTime> updatedAt,
   Value<int> rowid,
 });
@@ -2417,6 +2459,7 @@ typedef $$PriceCacheTableUpdateCompanionBuilder = PriceCacheCompanion Function({
   Value<String> symbol,
   Value<double> priceUsd,
   Value<double> change24h,
+  Value<String?> imageUrl,
   Value<DateTime> updatedAt,
   Value<int> rowid,
 });
@@ -2438,6 +2481,9 @@ class $$PriceCacheTableFilterComposer
 
   ColumnFilters<double> get change24h => $composableBuilder(
       column: $table.change24h, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get imageUrl => $composableBuilder(
+      column: $table.imageUrl, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
@@ -2461,6 +2507,9 @@ class $$PriceCacheTableOrderingComposer
   ColumnOrderings<double> get change24h => $composableBuilder(
       column: $table.change24h, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get imageUrl => $composableBuilder(
+      column: $table.imageUrl, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 }
@@ -2482,6 +2531,9 @@ class $$PriceCacheTableAnnotationComposer
 
   GeneratedColumn<double> get change24h =>
       $composableBuilder(column: $table.change24h, builder: (column) => column);
+
+  GeneratedColumn<String> get imageUrl =>
+      $composableBuilder(column: $table.imageUrl, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -2516,6 +2568,7 @@ class $$PriceCacheTableTableManager extends RootTableManager<
             Value<String> symbol = const Value.absent(),
             Value<double> priceUsd = const Value.absent(),
             Value<double> change24h = const Value.absent(),
+            Value<String?> imageUrl = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2523,6 +2576,7 @@ class $$PriceCacheTableTableManager extends RootTableManager<
             symbol: symbol,
             priceUsd: priceUsd,
             change24h: change24h,
+            imageUrl: imageUrl,
             updatedAt: updatedAt,
             rowid: rowid,
           ),
@@ -2530,6 +2584,7 @@ class $$PriceCacheTableTableManager extends RootTableManager<
             required String symbol,
             required double priceUsd,
             Value<double> change24h = const Value.absent(),
+            Value<String?> imageUrl = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2537,6 +2592,7 @@ class $$PriceCacheTableTableManager extends RootTableManager<
             symbol: symbol,
             priceUsd: priceUsd,
             change24h: change24h,
+            imageUrl: imageUrl,
             updatedAt: updatedAt,
             rowid: rowid,
           ),

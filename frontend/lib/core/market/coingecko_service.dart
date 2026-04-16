@@ -156,7 +156,15 @@ class CoinGeckoService {
 
   final http.Client _client;
 
+  /// 图标 URL 持久化回调（由上层注入，写入 DB）
+  void Function(Map<String, String> urls)? onImageUrlsFetched;
+
   CoinGeckoService({http.Client? client}) : _client = client ?? http.Client();
+
+  /// 从 DB 恢复已缓存的图标 URL（App 启动时调用一次）
+  void restoreImageUrlCache(Map<String, String> urls) {
+    _coinImageUrlCache.addAll(urls);
+  }
 
   /// 释放 HTTP 客户端
   void dispose() {
@@ -381,6 +389,11 @@ class CoinGeckoService {
           }
         }
       }
+    }
+
+    // 持久化新拉取的 URL 到 DB
+    if (toFetch.isNotEmpty && result.isNotEmpty) {
+      onImageUrlsFetched?.call(Map<String, String>.from(result));
     }
 
     return result;
