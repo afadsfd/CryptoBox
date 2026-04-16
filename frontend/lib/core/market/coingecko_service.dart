@@ -386,6 +386,26 @@ class CoinGeckoService {
     return result;
   }
 
+  /// 仅从内存缓存中读取已有的图片 URL（不发网络请求）
+  Map<String, String> getCachedImageUrls(List<String> symbols) {
+    final result = <String, String>{};
+    const stableSmall =
+        'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
+    final stableIcon = upgradeRasterImageUrl(stableSmall);
+
+    for (final sym in symbols.map((s) => s.toUpperCase()).toSet()) {
+      if (_stablecoins.contains(sym)) {
+        result[sym] = stableIcon;
+        continue;
+      }
+      final cached = _coinImageUrlCache[sym];
+      if (cached != null) {
+        result[sym] = cached;
+      }
+    }
+    return result;
+  }
+
   /// 清除所有缓存
   void clearCache() {
     _priceCache.clear();

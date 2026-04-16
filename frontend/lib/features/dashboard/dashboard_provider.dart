@@ -276,9 +276,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       // 网络拉取 + 写 DB
       await _loadSummary();
 
-      // 同步完成，用最新数据再刷一次 holdings / sources
+      // 同步完成，用最新数据再刷一次 holdings / sources（含图片拉取）
       await Future.wait([
-        _loadHoldings(),
+        _loadHoldings(fetchImages: true),
         _loadSources(),
       ]);
     } catch (e) {
@@ -359,7 +359,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     }
   }
 
-  Future<void> _loadHoldings() async {
+  Future<void> _loadHoldings({bool fetchImages = false}) async {
     final groups = await _portfolioService.getHoldingsGroupedByExchange();
     final grandTotal =
         groups.fold<double>(0, (sum, g) => sum + g.totalValueUsd);
@@ -371,16 +371,31 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       }
     }
 
+    // 图片：fetchImages=false 时用内存缓存（不发网络请求）
     Map<String, String> images = {};
     if (allSymbols.isNotEmpty) {
       try {
         final cg = _ref.read(coingeckoServiceProvider);
-        images = await cg.getCoinSmallImageUrls(allSymbols.toList());
+        if (fetchImages) {
+          images = await cg.getCoinSmallImageUrls(allSymbols.toList());
+        } else {
+          // 仅读取内存缓存中已有的图片 URL
+          images = cg.getCachedImageUrls(allSymbols.toList());
+        }
       } catch (e) {
         debugPrint('Dashboard: coin images failed: $e');
       }
     }
 
+    final sections = _buildSections(groups, grandTotal, images);
+    state = state.copyWith(exchangeSections: sections);
+  }
+
+  List<DashboardExchangeSection> _buildSections(
+    List<ExchangeHoldingsGroup> groups,
+    double grandTotal,
+    Map<String, String> images,
+  ) {
     DashboardAssetRow rowFor(
       AccountHoldingLine a,
       double exchangeTotal,
@@ -403,7 +418,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       );
     }
 
-    final sections = groups.map((g) {
+    return groups.map((g) {
       final rows = g.holdings.map((a) => rowFor(a, g.totalValueUsd)).toList();
 
       final subs = g.sourceGroups.map((sg) {
@@ -433,8 +448,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         sourceSections: subs,
       );
     }).toList();
-
-    state = state.copyWith(exchangeSections: sections);
   }
 
   Future<void> _loadSources() async {
@@ -488,7 +501,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     try {
       await Future.wait([
         _loadHistory(state.selectedPeriod),
-        _loadHoldings(),
+        _loadHoldings(fetchImages: true),
         _loadSources(),
       ]);
     } catch (e) {
