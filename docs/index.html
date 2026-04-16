@@ -502,6 +502,106 @@
       line-height: 1.65;
     }
 
+    /* ── Pain Points / Scenarios ── */
+    #pain { padding: 80px 0; }
+
+    .pain-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--warning);
+      background: rgba(245,158,11,0.10);
+      border: 1px solid rgba(245,158,11,0.22);
+      border-radius: 999px;
+      padding: 6px 14px;
+      margin-bottom: 20px;
+    }
+
+    .pain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 48px;
+    }
+
+    .pain-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .pain-card:hover {
+      border-color: var(--outline);
+      transform: translateY(-3px);
+    }
+    .pain-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at top left, rgba(245,158,11,0.05) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .pain-quote {
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 16px;
+      opacity: 0.7;
+    }
+
+    .pain-scene {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      line-height: 1.4;
+    }
+
+    .pain-detail {
+      font-size: 13.5px;
+      color: var(--text-sec);
+      line-height: 1.7;
+    }
+
+    .pain-detail em {
+      font-style: normal;
+      color: var(--warning);
+      font-weight: 500;
+    }
+
+    .pain-solve {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    .pain-solve::before {
+      content: '✓';
+      width: 18px;
+      height: 18px;
+      background: rgba(34,197,94,0.12);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
     /* ── Exchanges ── */
     .exchanges-grid {
       display: grid;
@@ -834,6 +934,7 @@
     /* ── Responsive ── */
     @media (max-width: 768px) {
       section { padding: 64px 0; }
+      .pain-grid { grid-template-columns: 1fr; }
 
       .nav-links { display: none; }
 
@@ -1159,6 +1260,86 @@
     </div>
   </div>
 </div>
+
+
+<!-- ══════════ PAIN POINTS ══════════ -->
+<section id="pain">
+  <div class="container">
+    <div class="fade-in" style="text-align:center;">
+      <div class="pain-label">😩 你是否也有这些烦恼</div>
+      <h2 class="section-title">资产散落各处，<br />每次查看都是一场折腾</h2>
+      <p class="section-sub">这些场景，99% 的多交易所用户都经历过。</p>
+    </div>
+
+    <div class="pain-grid stagger">
+
+      <div class="pain-card fade-in" style="--i:0">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">我的币分在 3 个交易所，每次想知道自己总资产是多少，要打开 3 个 App 手动加一遍</div>
+        <div class="pain-detail">
+          Binance 放着大仓，OKX 跑着合约，Gate 存着小币种……
+          打开一个、记个数，再打开一个、再记……
+          <em>算出来的数字还不一定是同一时刻的价格。</em>
+        </div>
+        <div class="pain-solve">CryptoBox 一屏汇总全部交易所实时总值</div>
+      </div>
+
+      <div class="pain-card fade-in" style="--i:1">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">理财、合约、现货各自分开，根本搞不清楚自己「实际可用」的资产有多少</div>
+        <div class="pain-detail">
+          现货有余额，但一半在活期理财；合约账户还有保证金和未实现盈亏……
+          <em>到底哪些是真正的净资产？没人帮你算清楚。</em>
+        </div>
+        <div class="pain-solve">自动聚合现货 / 合约 / 理财，分类展示总净值</div>
+      </div>
+
+      <div class="pain-card fade-in" style="--i:2">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">每次和人说自己持仓多少，要现场切 App 翻半天，感觉很不专业</div>
+        <div class="pain-detail">
+          朋友问一句「你现在总仓位多少」，你却要：解锁手机 → 打开 A 交易所 → 截图 → 再打开 B →
+          <em>对方早就不想听了。</em>
+        </div>
+        <div class="pain-solve">打开 CryptoBox，一秒告诉你全仓总值和涨跌幅</div>
+      </div>
+
+      <div class="pain-card fade-in" style="--i:3">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">市场波动时，不知道自己到底今天亏了多少，心里没底</div>
+        <div class="pain-detail">
+          大盘暴跌，手忙脚乱打开各个 App 看损益，
+          每个平台显示的盈亏计算方式还不一样，
+          <em>最后根本加不出一个让自己心安的数字。</em>
+        </div>
+        <div class="pain-solve">统一计算 24h 加权涨跌，一个数字看清今日盈亏</div>
+      </div>
+
+      <div class="pain-card fade-in" style="--i:4">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">用过几款资产管理工具，但都要注册账号，甚至要上传 API Key 到他们服务器，总觉得不放心</div>
+        <div class="pain-detail">
+          API Key 泄露过一次就知道有多可怕。
+          那些「云端同步」的 App，你的密钥存在哪？他们的服务器安不安全？
+          <em>没人能给你保证。</em>
+        </div>
+        <div class="pain-solve">密钥只存你的手机，零网络传输，代码完全可审计</div>
+      </div>
+
+      <div class="pain-card fade-in" style="--i:5">
+        <div class="pain-quote">"</div>
+        <div class="pain-scene">想回顾上个月资产变化趋势，但每个交易所的历史记录格式都不一样，导出来也看不懂</div>
+        <div class="pain-detail">
+          想知道自己这 30 天是盈是亏、哪段时间跌得最惨，
+          交易所给的报告要么太复杂，要么只看单个平台，
+          <em>看不到全局的走势。</em>
+        </div>
+        <div class="pain-solve">本地历史快照，7 / 30 / 90 天全局资产走势图</div>
+      </div>
+
+    </div>
+  </div>
+</section>
 
 
 <!-- ══════════ FEATURES ══════════ -->
