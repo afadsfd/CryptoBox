@@ -16,6 +16,7 @@ import '../../shared/widgets/sharp_network_image.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../../shared/widgets/skeleton.dart';
+import '../portfolio/models/portfolio_summary.dart';
 import '../profile/profile_provider.dart';
 import 'dashboard_provider.dart';
 
@@ -145,6 +146,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               SliverToBoxAdapter(
                 child: _buildGrowthMetricsSection(context, state, notifier),
               ),
+
+              // 同步警告（earn / futures 权限缺失等）
+              if (state.warnings.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildWarningBanner(context, state.warnings),
+                ),
 
               // Top Holdings 标题
               SliverToBoxAdapter(
@@ -645,6 +652,84 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 同步警告横幅（理财/合约 权限缺失等）
+  Widget _buildWarningBanner(
+    BuildContext context,
+    List<PortfolioWarning> warnings,
+  ) {
+    const srcLabel = {
+      'earn': '理财',
+      'futures': '合约',
+      'spot': '现货',
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0x22F59E0B),
+          border: Border.all(color: const Color(0x55F59E0B)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline,
+                color: Color(0xFFF59E0B), size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '部分账户同步不完整',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFF59E0B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...warnings.take(5).map((w) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '• ${w.accountLabel} · ${srcLabel[w.sourceLabel] ?? w.sourceLabel}：${w.message}',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 11.5,
+                            color: AppTheme.textOnSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                      )),
+                  if (warnings.length > 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '…另 ${warnings.length - 5} 条',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 11.5,
+                          color: AppTheme.textOnSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '请到对应交易所 API Key 页面开启「读取 理财/合约」权限',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 11,
+                      color: AppTheme.textOnSurfaceVariant.withAlpha(200),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

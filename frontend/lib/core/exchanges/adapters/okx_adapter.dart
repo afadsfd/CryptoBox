@@ -154,26 +154,20 @@ class OkxAdapter extends BaseExchangeAdapter {
     required String apiSecret,
     String? passphrase,
   }) async {
-    final results = <Balance>[];
+    // 1) 活期/定期 Savings  &  2) 资金账户 —— 并发拉取
+    final pp = passphrase ?? '';
+    final results = await Future.wait([
+      _fetchSavings(apiKey, apiSecret, pp).catchError((e) {
+        debugPrint('[OKX] savings failed: $e');
+        return <Balance>[];
+      }),
+      _fetchFunding(apiKey, apiSecret, pp).catchError((e) {
+        debugPrint('[OKX] funding failed: $e');
+        return <Balance>[];
+      }),
+    ]);
 
-    // 1) 活期/定期 Savings - /api/v5/finance/savings/balance
-    try {
-      final savings = await _fetchSavings(apiKey, apiSecret, passphrase ?? '');
-      results.addAll(savings);
-    } catch (e) {
-      debugPrint('[OKX] savings failed: $e');
-    }
-
-    // 2) 资金账户 - /api/v5/asset/balances
-    try {
-      final funding =
-          await _fetchFunding(apiKey, apiSecret, passphrase ?? '');
-      results.addAll(funding);
-    } catch (e) {
-      debugPrint('[OKX] funding failed: $e');
-    }
-
-    return mergeBalances(results);
+    return mergeBalances(results.expand((b) => b).toList());
   }
 
   Future<List<Balance>> _fetchSavings(

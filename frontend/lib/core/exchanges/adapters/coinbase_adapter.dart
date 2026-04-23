@@ -124,37 +124,43 @@ class CoinbaseAdapter extends BaseExchangeAdapter {
     return balances;
   }
 
+  /// Coinbase 的 `/api/v3/brokerage/accounts` 已覆盖现货 + 质押 + 赚币等所有账户，
+  /// 因此不单独实现 earn/futures，沿用 base 的空默认。
+  /// Coinbase Advanced Trade 目前没有独立的期货账户公开 API。
+
   @override
   Future<Map<String, Ticker>> getTickers(List<String> symbols) async {
-    final result = <String, Ticker>{};
+    // 并发拉取所有 ticker（原实现串行，N 个 symbol 需要 N × RTT）
+    final futures = symbols.map<Future<MapEntry<String, Ticker>?>>(
+      (symbol) async {
+        final productId = symbol.replaceAll('/', '-');
+        final uri = Uri.parse('$baseUrl/api/v3/brokerage/products/$productId');
+        try {
+          final response = await http.get(uri).timeout(_timeout);
+          if (response.statusCode != 200) return null;
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final lastPrice =
+              double.tryParse(data['price']?.toString() ?? '') ?? 0;
+          final change = double.tryParse(
+              data['price_percentage_change_24h']?.toString() ?? '');
+          return MapEntry(
+            symbol,
+            Ticker(
+              symbol: symbol,
+              lastPrice: lastPrice,
+              change24h: change,
+            ),
+          );
+        } catch (_) {
+          return null;
+        }
+      },
+    );
 
-    for (final symbol in symbols) {
-      // Coinbase 使用 BTC-USD 格式
-      final productId = symbol.replaceAll('/', '-');
-      final uri = Uri.parse(
-        '$baseUrl/api/v3/brokerage/products/$productId',
-      );
-
-      try {
-        final response = await http.get(uri).timeout(_timeout);
-        if (response.statusCode != 200) continue;
-
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final lastPrice =
-            double.tryParse(data['price']?.toString() ?? '') ?? 0;
-        final change =
-            double.tryParse(data['price_percentage_change_24h']?.toString() ?? '');
-
-        result[symbol] = Ticker(
-          symbol: symbol,
-          lastPrice: lastPrice,
-          change24h: change,
-        );
-      } catch (_) {
-        continue;
-      }
-    }
-
-    return result;
+    final entries = await Future.wait(futures);
+    return {
+      for (final e in entries)
+        if (e != null) e.key: e.value,
+    };
   }
 }

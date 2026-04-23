@@ -82,33 +82,23 @@ class BinanceAdapter extends BaseExchangeAdapter {
     required String apiSecret,
     String? passphrase,
   }) async {
-    final results = <Balance>[];
+    // 1) 活期 2) 定期 3) 资金账户 —— 并发拉取
+    final results = await Future.wait([
+      _fetchEarnFlexible(apiKey, apiSecret).catchError((e) {
+        debugPrint('[Binance] earn flexible failed: $e');
+        return <Balance>[];
+      }),
+      _fetchEarnLocked(apiKey, apiSecret).catchError((e) {
+        debugPrint('[Binance] earn locked failed: $e');
+        return <Balance>[];
+      }),
+      _fetchFundingWallet(apiKey, apiSecret).catchError((e) {
+        debugPrint('[Binance] funding wallet failed: $e');
+        return <Balance>[];
+      }),
+    ]);
 
-    // 1) 活期理财 - Simple Earn Flexible Position
-    try {
-      final flexible = await _fetchEarnFlexible(apiKey, apiSecret);
-      results.addAll(flexible);
-    } catch (e) {
-      debugPrint('[Binance] earn flexible failed: $e');
-    }
-
-    // 2) 定期理财 - Simple Earn Locked Position
-    try {
-      final locked = await _fetchEarnLocked(apiKey, apiSecret);
-      results.addAll(locked);
-    } catch (e) {
-      debugPrint('[Binance] earn locked failed: $e');
-    }
-
-    // 3) 资金账户 (Funding Wallet) - 用于持有币赚币等
-    try {
-      final funding = await _fetchFundingWallet(apiKey, apiSecret);
-      results.addAll(funding);
-    } catch (e) {
-      debugPrint('[Binance] funding wallet failed: $e');
-    }
-
-    return mergeBalances(results);
+    return mergeBalances(results.expand((b) => b).toList());
   }
 
   /// 合约账户（U 本位 + 币本位）
@@ -118,25 +108,19 @@ class BinanceAdapter extends BaseExchangeAdapter {
     required String apiSecret,
     String? passphrase,
   }) async {
-    final results = <Balance>[];
+    // U 本位合约  &  币本位合约 —— 并发
+    final results = await Future.wait([
+      _fetchUsdtMFutures(apiKey, apiSecret).catchError((e) {
+        debugPrint('[Binance] USDT-M futures failed: $e');
+        return <Balance>[];
+      }),
+      _fetchCoinMFutures(apiKey, apiSecret).catchError((e) {
+        debugPrint('[Binance] COIN-M futures failed: $e');
+        return <Balance>[];
+      }),
+    ]);
 
-    // 1) U 本位合约 - /fapi/v2/balance
-    try {
-      final usdt = await _fetchUsdtMFutures(apiKey, apiSecret);
-      results.addAll(usdt);
-    } catch (e) {
-      debugPrint('[Binance] USDT-M futures failed: $e');
-    }
-
-    // 2) 币本位合约 - /dapi/v1/balance
-    try {
-      final coin = await _fetchCoinMFutures(apiKey, apiSecret);
-      results.addAll(coin);
-    } catch (e) {
-      debugPrint('[Binance] COIN-M futures failed: $e');
-    }
-
-    return mergeBalances(results);
+    return mergeBalances(results.expand((b) => b).toList());
   }
 
   // ============ Earn 细分 ============
@@ -375,7 +359,21 @@ class BinanceAdapter extends BaseExchangeAdapter {
 
   @override
   Future<Map<String, Ticker>> getTickers(List<String> symbols) async {
-    final uri = Uri.parse('$baseUrl/api/v3/ticker/24hr');
+    // 计算需要的 raw symbols（BTCUSDT 形式）
+    final symbolSet =
+        symbols.map((s) => s.replaceAll('/', '').toUpperCase()).toSet();
+
+    // 优化：只请求需要的 symbols；空列表时才拉全量
+    Uri uri;
+    if (symbolSet.isEmpty) {
+      uri = Uri.parse('$baseUrl/api/v3/ticker/24hr');
+    } else {
+      // Binance 接受 symbols=["BTCUSDT","ETHUSDT"] JSON 数组字符串
+      final encoded = jsonEncode(symbolSet.toList());
+      uri = Uri.parse('$baseUrl/api/v3/ticker/24hr')
+          .replace(queryParameters: {'symbols': encoded});
+    }
+
     final response = await http.get(uri).timeout(_timeout);
 
     if (response.statusCode != 200) {
@@ -386,11 +384,10 @@ class BinanceAdapter extends BaseExchangeAdapter {
       );
     }
 
-    final list = jsonDecode(response.body) as List<dynamic>;
+    final decoded = jsonDecode(response.body);
+    final list =
+        decoded is List ? decoded : <dynamic>[]; // 单 symbol 时 Binance 会返回对象，这里统一兜底
     final result = <String, Ticker>{};
-
-    final symbolSet =
-        symbols.map((s) => s.replaceAll('/', '').toUpperCase()).toSet();
 
     for (final item in list) {
       final rawSymbol = item['symbol'] as String? ?? '';

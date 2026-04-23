@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/exchanges/models/balance.dart';
 import '../../core/market/coingecko_provider.dart';
 import '../portfolio/models/exchange_holdings_group.dart';
+import '../portfolio/models/portfolio_summary.dart';
 import '../portfolio/portfolio_provider.dart';
 import '../portfolio/portfolio_service.dart';
 
@@ -160,6 +161,7 @@ class DashboardState {
   final bool hasLoadedOnce;
   final String? error;
   final String selectedPeriod;
+  final List<PortfolioWarning> warnings;
 
   DashboardState({
     this.totalValue = 0.0,
@@ -173,6 +175,7 @@ class DashboardState {
     this.hasLoadedOnce = false,
     this.error,
     this.selectedPeriod = '1M',
+    this.warnings = const [],
   });
 
   bool get hasAnyData =>
@@ -192,6 +195,7 @@ class DashboardState {
     bool? hasLoadedOnce,
     Object? error = _sentinel,
     String? selectedPeriod,
+    List<PortfolioWarning>? warnings,
   }) {
     return DashboardState(
       totalValue: totalValue ?? this.totalValue,
@@ -205,6 +209,7 @@ class DashboardState {
       hasLoadedOnce: hasLoadedOnce ?? this.hasLoadedOnce,
       error: identical(error, _sentinel) ? this.error : error as String?,
       selectedPeriod: selectedPeriod ?? this.selectedPeriod,
+      warnings: warnings ?? this.warnings,
     );
   }
 }
@@ -317,6 +322,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       totalValue: summary.totalValueUsd,
       change24h: summary.change24hUsd,
       changePercent: summary.change24hPercent,
+      warnings: summary.warnings,
     );
   }
 

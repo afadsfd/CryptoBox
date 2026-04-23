@@ -6,6 +6,7 @@ import '../../core/exchanges/adapters/base_adapter.dart';
 import '../../core/exchanges/exchange_service.dart';
 import '../../core/exchanges/models/balance.dart';
 import '../../core/exchanges/models/exchange_info.dart';
+import '../../core/exchanges/models/ticker.dart';
 import '../../core/local_storage/database.dart';
 import '../../core/local_storage/repositories/exchange_repository.dart';
 import '../../core/local_storage/repositories/holding_repository.dart';
@@ -144,12 +145,30 @@ class PortfolioService {
     // 缓存价格到本地
     await _cachePrices(prices, changes);
 
+    // 汇总 earn / futures 拉取失败的提示
+    final warnings = <PortfolioWarning>[];
+    for (final ab in accountBalances) {
+      for (final err in ab.errors.entries) {
+        // spot 失败通常意味着整号失效，由上层捕获后回退缓存，这里不重复提示
+        if (err.key == BalanceSource.spot) continue;
+        warnings.add(PortfolioWarning(
+          exchangeName: ab.account.exchangeName,
+          accountLabel: ab.account.label.isNotEmpty
+              ? ab.account.label
+              : ab.account.exchangeName,
+          sourceLabel: err.key.name,
+          message: err.value,
+        ));
+      }
+    }
+
     return PortfolioSummary(
       totalValueUsd: totalValueUsd,
       change24hUsd: change24hUsd,
       change24hPercent: change24hPercent,
       connectedExchanges: accounts.length,
       totalHoldings: holdingCount,
+      warnings: warnings,
     );
   }
 
@@ -448,12 +467,19 @@ class PortfolioService {
         return;
       }
 
-      // 拉取余额（现货 + 理财 + 合约）
-      final balances = await adapter.getAllBalances(
+      // 拉取余额（现货 + 理财 + 合约）—— 带诊断
+      final fetchResult = await adapter.getAllBalancesDetailed(
         apiKey: creds['apiKey']!,
         apiSecret: creds['apiSecret']!,
         passphrase: creds['passphrase'],
       );
+      final balances = fetchResult.balances;
+      for (final entry in fetchResult.errors.entries) {
+        debugPrint(
+          '[PortfolioService] ${account.exchangeName} ${entry.key.name} '
+          'fetch failed: ${entry.value}',
+        );
+      }
 
       // 获取价格
       final symbols = balances.map((b) => b.symbol.toUpperCase()).toList();
@@ -544,13 +570,17 @@ class PortfolioService {
       throw Exception('No adapter for ${account.exchangeName}');
     }
 
-    final balances = await adapter.getAllBalances(
+    final result = await adapter.getAllBalancesDetailed(
       apiKey: creds['apiKey']!,
       apiSecret: creds['apiSecret']!,
       passphrase: creds['passphrase'],
     );
 
-    return _AccountBalanceResult(account: account, balances: balances);
+    return _AccountBalanceResult(
+      account: account,
+      balances: result.balances,
+      errors: result.errors,
+    );
   }
 
   /// 从 Holdings 表回退读取缓存余额
@@ -582,37 +612,41 @@ class PortfolioService {
     final prices = <String, double>{};
     final changes = <String, double>{};
 
-    // 每个交易所只请求一次 ticker
-    final seenExchanges = <String>{};
+    // 每个交易所只请求一次 ticker —— 并发执行
+    final uniqueExchanges = <String>{};
+    final tickerFutures = <Future<Map<String, Ticker>>>[];
     for (final ab in accountBalances) {
       final exchName = ab.account.exchangeName;
-      if (seenExchanges.contains(exchName)) continue;
-      seenExchanges.add(exchName);
+      if (!uniqueExchanges.add(exchName)) continue;
+      final adapter = exchangeService.getAdapter(exchName);
+      if (adapter == null) continue;
 
-      try {
-        final adapter = exchangeService.getAdapter(exchName);
-        if (adapter == null) continue;
+      final tickerSymbols = symbols.map((s) => '$s/USDT').toList();
+      tickerFutures.add(
+        adapter.getTickers(tickerSymbols).catchError((e) {
+          debugPrint(
+            '[PortfolioService] Failed to get tickers from $exchName: $e',
+          );
+          return <String, Ticker>{};
+        }),
+      );
+    }
 
-        final tickerSymbols = symbols.map((s) => '$s/USDT').toList();
-        final tickers = await adapter.getTickers(tickerSymbols);
-
-        for (final t in tickers.values) {
-          final baseSym = t.symbol.split('/').first.toUpperCase();
-          if (!prices.containsKey(baseSym)) {
-            prices[baseSym] = t.lastPrice;
-          }
-          if (!changes.containsKey(baseSym) && t.change24h != null) {
-            changes[baseSym] = t.change24h!;
-          }
+    final tickerResults = await Future.wait(tickerFutures);
+    for (final tickers in tickerResults) {
+      for (final t in tickers.values) {
+        final baseSym = t.symbol.split('/').first.toUpperCase();
+        if (!prices.containsKey(baseSym)) {
+          prices[baseSym] = t.lastPrice;
         }
-      } catch (e) {
-        debugPrint(
-          '[PortfolioService] Failed to get tickers from $exchName: $e',
-        );
+        if (!changes.containsKey(baseSym) && t.change24h != null) {
+          changes[baseSym] = t.change24h!;
+        }
       }
     }
 
-    // CoinGecko fallback for prices
+    // CoinGecko fallback —— price + 24h 同一接口返回，只需调 getPrices；
+    // 涨跌从缓存读取
     final missingPrices =
         symbols.where((s) => !prices.containsKey(s)).toList();
     if (missingPrices.isNotEmpty) {
@@ -624,7 +658,6 @@ class PortfolioService {
       }
     }
 
-    // CoinGecko fallback for 24h changes
     final missingChanges =
         symbols.where((s) => !changes.containsKey(s)).toList();
     if (missingChanges.isNotEmpty) {
@@ -784,8 +817,13 @@ class PortfolioService {
 class _AccountBalanceResult {
   final ExchangeAccount account;
   final List<Balance> balances;
+  final Map<BalanceSource, String> errors;
 
-  _AccountBalanceResult({required this.account, required this.balances});
+  _AccountBalanceResult({
+    required this.account,
+    required this.balances,
+    this.errors = const {},
+  });
 }
 
 class _MergedBalance {

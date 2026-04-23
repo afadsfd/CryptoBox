@@ -1,3 +1,19 @@
+/// 同步过程中某个账户 / source 失败的提示
+class PortfolioWarning {
+  final String exchangeName;
+  final String accountLabel;
+  /// 'spot' | 'earn' | 'futures'
+  final String sourceLabel;
+  final String message;
+
+  const PortfolioWarning({
+    required this.exchangeName,
+    required this.accountLabel,
+    required this.sourceLabel,
+    required this.message,
+  });
+}
+
 /// 资产组合概览
 class PortfolioSummary {
   final double totalValueUsd;
@@ -5,6 +21,7 @@ class PortfolioSummary {
   final double change24hPercent;
   final int connectedExchanges;
   final int totalHoldings;
+  final List<PortfolioWarning> warnings;
 
   const PortfolioSummary({
     required this.totalValueUsd,
@@ -12,6 +29,7 @@ class PortfolioSummary {
     required this.change24hPercent,
     required this.connectedExchanges,
     required this.totalHoldings,
+    this.warnings = const [],
   });
 
   /// 空 summary（无交易所绑定时使用）
