@@ -34,7 +34,7 @@ class Holdings extends Table {
   RealColumn get locked => real().withDefault(const Constant(0.0))();
   RealColumn get priceUsd => real().nullable()();
   RealColumn get valueUsd => real().nullable()();
-  /// 资金来源：spot / earn / futures
+  /// 资金来源：spot / funding / earn_flexible / futures_usdt / unified 等
   TextColumn get source => text().withDefault(const Constant('spot'))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 

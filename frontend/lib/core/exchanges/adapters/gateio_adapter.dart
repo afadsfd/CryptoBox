@@ -141,7 +141,7 @@ class GateioAdapter extends BaseExchangeAdapter {
         debugPrint('[Gate.io] futures $settle failed: $e');
       }
     }
-    return mergeBalances(results);
+    return mergeBalancesBySource(results);
   }
 
   Future<List<Balance>> _fetchFutures(
@@ -172,13 +172,15 @@ class GateioAdapter extends BaseExchangeAdapter {
         double.tryParse(data['available']?.toString() ?? '0') ?? 0;
     final net = total + unrealisedPnl;
     if (net <= 0) return <Balance>[];
+    final source =
+        settle == 'usdt' ? BalanceSource.futuresUsdt : BalanceSource.futuresCoin;
     return [
       Balance(
         symbol: currency,
         total: net,
         free: available,
         locked: net - available > 0 ? net - available : 0,
-        source: BalanceSource.futures,
+        source: source,
       ),
     ];
   }

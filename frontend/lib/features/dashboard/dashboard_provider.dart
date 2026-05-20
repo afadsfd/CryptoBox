@@ -40,10 +40,10 @@ class DashboardAssetRow {
   });
 }
 
-/// 按来源（spot/earn/futures）拆分的子分组
+/// 按来源拆分的子分组
 class DashboardSourceSubSection {
   final BalanceSource source;
-  final String label; // 现货 / 理财 / 合约
+  final String label; // 现货 / 资金账户 / U本位合约等
   final double totalValueUsd;
   final double pctOfExchange;
   final List<DashboardAssetRow> assets;
@@ -64,9 +64,11 @@ class DashboardExchangeSection {
   final String exchangeId;
   final String displayName;
   final String? exchangeLogoUrl;
+  final DateTime? lastSyncAt;
   final double totalValueUsd;
   final double pctOfPortfolio;
   final List<DashboardAssetRow> assets;
+  final List<BalanceSource> supportedSources;
 
   /// 按来源拆分的子分组（可能为空，仅含一个，或多个）
   final List<DashboardSourceSubSection> sourceSections;
@@ -77,9 +79,11 @@ class DashboardExchangeSection {
     required this.exchangeId,
     required this.displayName,
     this.exchangeLogoUrl,
+    this.lastSyncAt,
     required this.totalValueUsd,
     required this.pctOfPortfolio,
     required this.assets,
+    this.supportedSources = const [],
     this.sourceSections = const [],
   });
 }
@@ -432,7 +436,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
             sg.holdings.map((a) => rowFor(a, g.totalValueUsd)).toList();
         return DashboardSourceSubSection(
           source: sg.source,
-          label: _sourceLabel(sg.source),
+          label: sg.source.label,
           totalValueUsd: sg.totalValueUsd,
           pctOfExchange: g.totalValueUsd > 0
               ? sg.totalValueUsd / g.totalValueUsd * 100
@@ -447,10 +451,12 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         exchangeId: g.exchangeId,
         displayName: g.displayName,
         exchangeLogoUrl: g.logoUrl.isEmpty ? null : g.logoUrl,
+        lastSyncAt: g.lastSyncAt,
         totalValueUsd: g.totalValueUsd,
         pctOfPortfolio:
             grandTotal > 0 ? g.totalValueUsd / grandTotal * 100 : 0.0,
         assets: rows,
+        supportedSources: g.supportedSources,
         sourceSections: subs,
       );
     }).toList();
@@ -538,17 +544,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     return points.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value.value);
     }).toList();
-  }
-
-  static String _sourceLabel(BalanceSource s) {
-    switch (s) {
-      case BalanceSource.spot:
-        return '现货';
-      case BalanceSource.earn:
-        return '理财';
-      case BalanceSource.futures:
-        return '合约';
-    }
   }
 
   /// 格式化金额

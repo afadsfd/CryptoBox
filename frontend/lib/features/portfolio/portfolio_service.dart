@@ -156,7 +156,7 @@ class PortfolioService {
           accountLabel: ab.account.label.isNotEmpty
               ? ab.account.label
               : ab.account.exchangeName,
-          sourceLabel: err.key.name,
+          sourceLabel: err.key.storageKey,
           message: err.value,
         ));
       }
@@ -328,11 +328,7 @@ class PortfolioService {
         bySource.putIfAbsent(line.source, () => []).add(line);
       }
       final subGroups = <SourceHoldingsSubGroup>[];
-      for (final src in const [
-        BalanceSource.spot,
-        BalanceSource.earn,
-        BalanceSource.futures,
-      ]) {
+      for (final src in balanceSourceDisplayOrder) {
         final lines = bySource[src];
         if (lines == null || lines.isEmpty) continue;
         final sub = lines.fold<double>(0, (s, l) => s + l.valueUsd);
@@ -344,6 +340,11 @@ class PortfolioService {
       }
 
       final info = ExchangeInfo.findById(acct.exchangeName);
+      final supportedSources = info?.visibleAssetSupport
+              .where((s) => s.isAvailable)
+              .map((s) => s.source)
+              .toList() ??
+          const <BalanceSource>[];
       groups.add(ExchangeHoldingsGroup(
         accountId: acct.id,
         label: acct.label.isNotEmpty
@@ -352,8 +353,10 @@ class PortfolioService {
         exchangeId: acct.exchangeName,
         displayName: info?.name ?? acct.exchangeName,
         logoUrl: info?.logoUrl ?? '',
+        lastSyncAt: acct.lastSyncAt,
         totalValueUsd: total,
         holdings: withChg,
+        supportedSources: supportedSources,
         sourceGroups: subGroups,
       ));
     }
@@ -493,7 +496,7 @@ class PortfolioService {
         final sym = b.symbol.toUpperCase();
         final price = prices[sym] ?? 0;
         return HoldingsCompanion.insert(
-          id: '${account.id}_${sym}_${b.source.name}',
+          id: '${account.id}_${sym}_${b.source.storageKey}',
           exchangeAccountId: account.id,
           symbol: sym,
           quantity: Value(b.total),
@@ -501,7 +504,7 @@ class PortfolioService {
           locked: Value(b.locked),
           priceUsd: Value(price),
           valueUsd: Value(b.total * price),
-          source: Value(b.source.name),
+          source: Value(b.source.storageKey),
           updatedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -731,7 +734,7 @@ class PortfolioService {
       final entries = entry.value.map((h) {
         final price = prices[h.symbol] ?? 0;
         return HoldingsCompanion.insert(
-          id: '${accountId}_${h.symbol}_${h.source.name}',
+          id: '${accountId}_${h.symbol}_${h.source.storageKey}',
           exchangeAccountId: accountId,
           symbol: h.symbol,
           quantity: Value(h.quantity),
@@ -739,7 +742,7 @@ class PortfolioService {
           locked: Value(h.locked),
           priceUsd: Value(price),
           valueUsd: Value(h.quantity * price),
-          source: Value(h.source.name),
+          source: Value(h.source.storageKey),
           updatedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -792,17 +795,7 @@ class PortfolioService {
     }
   }
 
-  static BalanceSource _parseSource(String? s) {
-    switch (s) {
-      case 'earn':
-        return BalanceSource.earn;
-      case 'futures':
-        return BalanceSource.futures;
-      case 'spot':
-      default:
-        return BalanceSource.spot;
-    }
-  }
+  static BalanceSource _parseSource(String? s) => balanceSourceFromStorage(s);
 
   static bool _isStablecoin(String symbol) {
     const stables = {'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'USDP', 'FRAX', 'LUSD'};

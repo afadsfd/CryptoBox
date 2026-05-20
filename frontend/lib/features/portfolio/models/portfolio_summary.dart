@@ -2,7 +2,7 @@
 class PortfolioWarning {
   final String exchangeName;
   final String accountLabel;
-  /// 'spot' | 'earn' | 'futures'
+  /// BalanceSource.storageKey，如 'spot' / 'earn_flexible' / 'futures_usdt'
   final String sourceLabel;
   final String message;
 

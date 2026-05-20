@@ -10,8 +10,8 @@ import 'base_adapter.dart';
 
 /// OKX 交易所适配器
 ///
-/// 说明：OKX 的统一交易账户（Unified Trading Account）一张表已经同时包含
-/// 现货、合约、杠杆、期权的保证金与净值，因此现货方法的结果已覆盖合约账户。
+  /// 说明：OKX 的统一交易账户（Unified Trading Account）一张表已经同时包含
+  /// 现货、合约、杠杆、期权的保证金与净值，因此返回为 unified，而不是误标成 spot。
 /// 理财（活期/定期 Savings）属于资金账户 + 金融产品，需要额外接口获取。
 class OkxAdapter extends BaseExchangeAdapter {
   static const _timeout = Duration(seconds: 15);
@@ -131,7 +131,7 @@ class OkxAdapter extends BaseExchangeAdapter {
             total: availBal + frozenBal,
             free: availBal,
             locked: frozenBal,
-            source: BalanceSource.spot,
+            source: BalanceSource.unified,
           );
         })
         .where((b) => b.total > 0)
@@ -167,7 +167,7 @@ class OkxAdapter extends BaseExchangeAdapter {
       }),
     ]);
 
-    return mergeBalances(results.expand((b) => b).toList());
+    return mergeBalancesBySource(results.expand((b) => b).toList());
   }
 
   Future<List<Balance>> _fetchSavings(
@@ -184,7 +184,7 @@ class OkxAdapter extends BaseExchangeAdapter {
             total: amt,
             free: 0,
             locked: amt,
-            source: BalanceSource.earn,
+            source: BalanceSource.earnFlexible,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)
@@ -209,7 +209,7 @@ class OkxAdapter extends BaseExchangeAdapter {
             total: bal > 0 ? bal : (avail + frozen),
             free: avail,
             locked: frozen,
-            source: BalanceSource.earn,
+            source: BalanceSource.funding,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)

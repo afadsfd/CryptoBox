@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/router.dart';
 import '../../app/theme.dart';
+import '../../core/exchanges/models/balance.dart';
+import '../../core/exchanges/models/exchange_info.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/sharp_network_image.dart';
@@ -301,7 +303,9 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     );
   }
 
-  Widget _buildExchangeCard(AppLocalizations l10n, Exchange exchange, bool isConnected) {
+  Widget _buildExchangeCard(
+      AppLocalizations l10n, Exchange exchange, bool isConnected) {
+    final info = ExchangeInfo.findById(exchange.id);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Container(
@@ -324,6 +328,12 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
               fontWeight: FontWeight.w600,
             ),
           ),
+          subtitle: info == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: _buildSupportChips(info.visibleAssetSupport),
+                ),
           trailing: isConnected
               ? const Icon(Icons.check_circle, color: AppTheme.success)
               : ElevatedButton(
@@ -352,6 +362,75 @@ class _ExchangesPageState extends ConsumerState<ExchangesPage> {
     'gateio': '#2354E6',
     'bitget': '#00F0FF',
   };
+
+  Widget _buildSupportChips(List<ExchangeAssetSupport> support) {
+    final available = support.where((s) => s.isAvailable).toList();
+    if (available.isEmpty) {
+      return Text(
+        '仅基础账户',
+        style: GoogleFonts.inter(
+          color: AppTheme.textSecondary,
+          fontSize: 11,
+        ),
+      );
+    }
+    final shown = available.take(4).toList();
+    return Wrap(
+      spacing: 5,
+      runSpacing: 5,
+      children: [
+        ...shown.map(_buildSupportChip),
+        if (available.length > shown.length)
+          _buildTinyChip('+${available.length - shown.length}', AppTheme.surface),
+      ],
+    );
+  }
+
+  Widget _buildSupportChip(ExchangeAssetSupport support) {
+    final color = _supportLevelColor(support.level);
+    final suffix =
+        support.level == AssetSupportLevel.stable ? '' : ' ${support.level.label}';
+    return _buildTinyChip('${support.source.label}$suffix', color.withAlpha(33),
+        textColor: color);
+  }
+
+  Widget _buildTinyChip(String text, Color background, {Color? textColor}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: (textColor ?? AppTheme.textSecondary).withAlpha(80),
+          width: 0.6,
+        ),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          color: textColor ?? AppTheme.textSecondary,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Color _supportLevelColor(AssetSupportLevel level) {
+    switch (level) {
+      case AssetSupportLevel.stable:
+        return AppTheme.success;
+      case AssetSupportLevel.beta:
+        return AppTheme.accentCyan;
+      case AssetSupportLevel.partial:
+        return const Color(0xFFF59E0B);
+      case AssetSupportLevel.planned:
+        return AppTheme.textSecondary;
+      case AssetSupportLevel.unsupported:
+        return AppTheme.error;
+    }
+  }
 
   Widget _buildExchangeLogo(String? logoUrl, String name, String? colorHex, {double size = 40}) {
     final fallbackColor = _parseColor(colorHex);

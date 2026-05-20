@@ -156,7 +156,7 @@ class BitgetAdapter extends BaseExchangeAdapter {
         debugPrint('[Bitget] futures $productType failed: $e');
       }
     }
-    return mergeBalances(results);
+    return mergeBalancesBySource(results);
   }
 
   Future<List<Balance>> _fetchFutures(
@@ -200,12 +200,18 @@ class BitgetAdapter extends BaseExchangeAdapter {
                   item['unrealizedPL']?.toString() ?? '0') ??
               0;
           final equity = available + locked + unrealizedPL;
+          final source = switch (productType) {
+            'USDT-FUTURES' => BalanceSource.futuresUsdt,
+            'USDC-FUTURES' => BalanceSource.futuresUsdc,
+            'COIN-FUTURES' => BalanceSource.futuresCoin,
+            _ => BalanceSource.futures,
+          };
           return Balance(
             symbol: marginCoin,
             total: equity,
             free: available,
             locked: locked,
-            source: BalanceSource.futures,
+            source: source,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)
@@ -252,7 +258,7 @@ class BitgetAdapter extends BaseExchangeAdapter {
               total: amount,
               free: 0,
               locked: amount,
-              source: BalanceSource.earn,
+              source: BalanceSource.earnFlexible,
             ));
           }
         }
@@ -260,7 +266,7 @@ class BitgetAdapter extends BaseExchangeAdapter {
     } catch (e) {
       debugPrint('[Bitget] earn savings failed: $e');
     }
-    return mergeBalances(results);
+    return mergeBalancesBySource(results);
   }
 
   @override

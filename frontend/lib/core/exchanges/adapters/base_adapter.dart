@@ -80,7 +80,7 @@ abstract class BaseExchangeAdapter {
     return result.balances;
   }
 
-  /// 获取全部账户余额（现货 + 理财 + 合约），并返回每个 source 的错误信息
+  /// 获取全部账户余额（现货 + 理财 + 合约），并返回每个大类 source 的错误信息
   ///
   /// 保留 [BalanceSource] 信息，**只合并同 (symbol, source)** 的条目，
   /// 不跨 source 合并，便于上层区分展示。
@@ -148,8 +148,9 @@ abstract class BaseExchangeAdapter {
       return _SourceCallResult(
         source: fallbackSource,
         balances: list
-            .map((b) =>
-                b.source == fallbackSource ? b : b.copyWith(source: fallbackSource))
+            .map((b) => b.source == BalanceSource.unknown
+                ? b.copyWith(source: fallbackSource)
+                : b)
             .toList(),
       );
     } catch (e, st) {
@@ -201,7 +202,7 @@ List<Balance> mergeBalancesBySource(List<Balance> balances) {
   final map = <String, Balance>{};
   for (final b in balances) {
     if (b.total <= 0) continue;
-    final key = '${b.symbol.toUpperCase()}::${b.source.name}';
+    final key = '${b.symbol.toUpperCase()}::${b.source.storageKey}';
     final existing = map[key];
     if (existing == null) {
       map[key] = b.copyWith(symbol: b.symbol.toUpperCase());

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/exchanges/models/balance.dart';
 import '../../core/exchanges/models/exchange_info.dart';
 import '../../core/local_storage/database_provider.dart';
 import '../../core/local_storage/repositories/exchange_repository.dart';
@@ -200,8 +201,11 @@ class ExchangesNotifier extends StateNotifier<ExchangesState> {
           logoColor: _exchangeColorMap[info.id] ?? '#3B82F6',
           logoLetter: _computeLogoLetter(info.name),
           logoUrl: info.logoUrl,
-          supportsSpot: true,
-          supportsFutures: false,
+          supportsSpot: info.supportsSource(BalanceSource.spot) ||
+              info.supportsSource(BalanceSource.unified),
+          supportsFutures: info.visibleAssetSupport.any(
+            (s) => s.isAvailable && s.source.isFuturesLike,
+          ),
           requiresPassphrase: info.requiresPassphrase,
           isFeatured: info.id == 'binance' || info.id == 'okx',
           status: 'available',

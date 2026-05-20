@@ -661,11 +661,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     BuildContext context,
     List<PortfolioWarning> warnings,
   ) {
-    const srcLabel = {
-      'earn': '理财',
-      'futures': '合约',
-      'spot': '现货',
-    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Container(
@@ -697,7 +692,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ...warnings.take(5).map((w) => Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          '• ${w.accountLabel} · ${srcLabel[w.sourceLabel] ?? w.sourceLabel}：${w.message}',
+                          '• ${w.accountLabel} · ${balanceSourceFromStorage(w.sourceLabel).label}：${w.message}',
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 11.5,
                             color: AppTheme.textOnSurfaceVariant,
@@ -773,7 +768,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${section.pctOfPortfolio.toStringAsFixed(1)}%',
+                  '${section.pctOfPortfolio.toStringAsFixed(1)}% · '
+                  '${_syncCoverageText(section)}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -803,6 +799,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return widgets;
   }
 
+  String _syncCoverageText(DashboardExchangeSection section) {
+    final synced = section.sourceSections.map((s) => s.source).toSet();
+    final supported =
+        section.supportedSources.where((s) => s.isSupportedForSync);
+    final supportedList = supported.toList();
+    final hit = supportedList.where(synced.contains).length;
+    final time = section.lastSyncAt == null
+        ? '未同步'
+        : DateFormat('MM-dd HH:mm').format(section.lastSyncAt!);
+    if (supportedList.isEmpty) {
+      return '已识别 ${synced.length} 类 · $time';
+    }
+    return '已识别 $hit/${supportedList.length} 类 · $time';
+  }
+
   Widget _buildSourceHeader(DashboardSourceSubSection sub) {
     final color = _sourceColor(sub.source);
     return Padding(
@@ -810,8 +821,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Row(
         children: [
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: color.withAlpha(38),
               borderRadius: BorderRadius.circular(6),
@@ -855,10 +865,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     switch (s) {
       case BalanceSource.spot:
         return AppTheme.accentCyan;
+      case BalanceSource.funding:
+        return const Color(0xFF38BDF8);
       case BalanceSource.earn:
+      case BalanceSource.earnFlexible:
+      case BalanceSource.earnLocked:
         return const Color(0xFF22C55E); // green
       case BalanceSource.futures:
+      case BalanceSource.futuresUsdt:
+      case BalanceSource.futuresCoin:
+      case BalanceSource.futuresUsdc:
         return const Color(0xFFF59E0B); // amber
+      case BalanceSource.unified:
+        return const Color(0xFFA78BFA);
+      case BalanceSource.margin:
+        return const Color(0xFFFB7185);
+      case BalanceSource.options:
+        return const Color(0xFFE879F9);
+      case BalanceSource.unknown:
+        return AppTheme.textOnSurfaceVariant;
     }
   }
 

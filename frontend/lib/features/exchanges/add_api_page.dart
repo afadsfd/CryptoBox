@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/exchanges/models/balance.dart';
 import '../../core/exchanges/models/exchange_info.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../shared/widgets/sharp_network_image.dart';
@@ -62,6 +63,7 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(addApiProvider(widget.exchangeId));
     final notifier = ref.read(addApiProvider(widget.exchangeId).notifier);
+    final exchangeInfo = ExchangeInfo.findById(widget.exchangeId);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -98,15 +100,19 @@ class _AddApiPageState extends ConsumerState<AddApiPage> {
                 ),
               ),
             ),
+            if (exchangeInfo != null) ...[
+              const SizedBox(height: 20),
+              _buildSupportMatrix(exchangeInfo),
+            ],
             const SizedBox(height: 32),
             if (state.error != null) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-color: AppTheme.error.withAlpha(26),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.error.withAlpha(77)),
+                  color: AppTheme.error.withAlpha(26),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.error.withAlpha(77)),
                 ),
                 child: Row(
                   children: [
@@ -242,6 +248,106 @@ color: AppTheme.error.withAlpha(26),
         ),
       ),
     );
+  }
+
+  Widget _buildSupportMatrix(ExchangeInfo info) {
+    final supports = info.assetSupport.isEmpty
+        ? const <ExchangeAssetSupport>[]
+        : info.assetSupport;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryContainer.withAlpha(35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '资产支持范围',
+            style: GoogleFonts.inter(
+              color: AppTheme.textOnSurface,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (supports.isEmpty)
+            Text(
+              '当前仅声明基础账户读取能力',
+              style: GoogleFonts.inter(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+              ),
+            )
+          else
+            ...supports.map(_buildSupportRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportRow(ExchangeAssetSupport support) {
+    final color = _supportLevelColor(support.level);
+    final icon = support.level == AssetSupportLevel.unsupported
+        ? Icons.remove_circle_outline
+        : support.level == AssetSupportLevel.planned
+            ? Icons.schedule
+            : Icons.check_circle_outline;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${support.source.label} · ${support.level.label}',
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textOnSurface,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (support.note.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      support.note,
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _supportLevelColor(AssetSupportLevel level) {
+    switch (level) {
+      case AssetSupportLevel.stable:
+        return AppTheme.success;
+      case AssetSupportLevel.beta:
+        return AppTheme.accentCyan;
+      case AssetSupportLevel.partial:
+        return const Color(0xFFF59E0B);
+      case AssetSupportLevel.planned:
+        return AppTheme.textSecondary;
+      case AssetSupportLevel.unsupported:
+        return AppTheme.error;
+    }
   }
 
   Widget _buildTextField({

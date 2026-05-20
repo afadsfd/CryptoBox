@@ -98,7 +98,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
       }),
     ]);
 
-    return mergeBalances(results.expand((b) => b).toList());
+    return mergeBalancesBySource(results.expand((b) => b).toList());
   }
 
   /// 合约账户（U 本位 + 币本位）
@@ -120,7 +120,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
       }),
     ]);
 
-    return mergeBalances(results.expand((b) => b).toList());
+    return mergeBalancesBySource(results.expand((b) => b).toList());
   }
 
   // ============ Earn 细分 ============
@@ -149,7 +149,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
           total: amount,
           free: amount,
           locked: 0,
-          source: BalanceSource.earn,
+          source: BalanceSource.earnFlexible,
         ));
       }
       final total = (data['total'] as num?)?.toInt() ?? 0;
@@ -183,7 +183,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
           total: amount,
           free: 0,
           locked: amount,
-          source: BalanceSource.earn,
+          source: BalanceSource.earnLocked,
         ));
       }
       final total = (data['total'] as num?)?.toInt() ?? 0;
@@ -219,7 +219,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
             total: total,
             free: free,
             locked: locked + freeze,
-            source: BalanceSource.earn,
+            source: BalanceSource.funding,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)
@@ -251,7 +251,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
             total: total,
             free: total,
             locked: 0,
-            source: BalanceSource.futures,
+            source: BalanceSource.futuresUsdt,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)
@@ -281,7 +281,7 @@ class BinanceAdapter extends BaseExchangeAdapter {
             total: total,
             free: total,
             locked: 0,
-            source: BalanceSource.futures,
+            source: BalanceSource.futuresCoin,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)

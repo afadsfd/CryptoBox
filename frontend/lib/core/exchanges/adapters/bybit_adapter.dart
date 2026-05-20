@@ -11,7 +11,7 @@ import 'base_adapter.dart';
 /// Bybit 交易所适配器
 ///
 /// 说明：UNIFIED 账户一张表已包含现货+衍生品的保证金/净值，
-/// 因此 getSpotBalance 的结果已覆盖合约。理财（Earn）和资金账户
+/// 因此 getSpotBalance 的结果返回 unified，避免误标成现货。理财（Earn）和资金账户
 /// (FUND) 需要单独接口。
 class BybitAdapter extends BaseExchangeAdapter {
   static const _timeout = Duration(seconds: 15);
@@ -139,7 +139,7 @@ class BybitAdapter extends BaseExchangeAdapter {
             total: walletBalance,
             free: walletBalance - locked,
             locked: locked,
-            source: BalanceSource.spot,
+            source: BalanceSource.unified,
           );
         })
         .where((b) => b.total > 0)
@@ -172,7 +172,7 @@ class BybitAdapter extends BaseExchangeAdapter {
       debugPrint('[Bybit] FUND balance failed: $e');
     }
 
-    return mergeBalances(results);
+    return mergeBalancesBySource(results);
   }
 
   Future<List<Balance>> _fetchFundBalance(
@@ -220,7 +220,7 @@ class BybitAdapter extends BaseExchangeAdapter {
             total: total,
             free: transfer,
             locked: total - transfer > 0 ? total - transfer : 0,
-            source: BalanceSource.earn,
+            source: BalanceSource.funding,
           );
         })
         .where((b) => b.total > 0 && b.symbol.isNotEmpty)

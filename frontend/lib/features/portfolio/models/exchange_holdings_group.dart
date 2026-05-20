@@ -8,7 +8,7 @@ class AccountHoldingLine {
   final double valueUsd;
   final double? change24h;
 
-  /// 资金来源：spot / earn / futures
+  /// 资金来源
   final BalanceSource source;
 
   const AccountHoldingLine({
@@ -21,7 +21,7 @@ class AccountHoldingLine {
   });
 }
 
-/// 按来源（spot/earn/futures）分组的子组
+/// 按来源分组的子组
 class SourceHoldingsSubGroup {
   final BalanceSource source;
   final double totalValueUsd;
@@ -41,10 +41,14 @@ class ExchangeHoldingsGroup {
   final String exchangeId;
   final String displayName;
   final String logoUrl;
+  final DateTime? lastSyncAt;
   final double totalValueUsd;
   final List<AccountHoldingLine> holdings;
 
-  /// 按资金来源拆分的子分组（spot/earn/futures）
+  /// 当前交易所声明支持的资金来源
+  final List<BalanceSource> supportedSources;
+
+  /// 按资金来源拆分的子分组
   final List<SourceHoldingsSubGroup> sourceGroups;
 
   const ExchangeHoldingsGroup({
@@ -53,8 +57,10 @@ class ExchangeHoldingsGroup {
     required this.exchangeId,
     required this.displayName,
     required this.logoUrl,
+    this.lastSyncAt,
     required this.totalValueUsd,
     required this.holdings,
+    this.supportedSources = const [],
     this.sourceGroups = const [],
   });
 }

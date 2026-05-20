@@ -1,6 +1,6 @@
 # CryptoBox 项目经验库
 
-> 最后更新: 2026-05-02
+> 最后更新: 2026-05-19
 
 ## 项目概况
 
@@ -11,6 +11,8 @@
 
 ## 最近经验
 
+- 2026-05-19: [CryptoBox v2.0.0 打包发布](./lessons/2026-05-19-cryptobox-v2.0.0打包发布.md)
+- 2026-05-19: [非现货资产支持口径优化](./lessons/2026-05-19-非现货资产支持口径优化.md)
 - 2026-05-02: [初始化 Git worktree 隔离工作树](./lessons/2026-05-02-初始化git-worktree隔离工作树.md)
 
 ## 按分类索引
@@ -19,3 +21,12 @@
 
 - [Git worktree 隔离开发模式](./patterns/git-worktree-isolated-development.md)
 
+### #资产聚合 #交易所API
+
+- [交易所资产支持矩阵与细粒度 Source](./patterns/2026-05-19-交易所资产支持矩阵与细粒度source.md)
+- [统一账户误标现货导致资产口径失真](./pitfalls/2026-05-19-统一账户误标现货导致资产口径失真.md)
+
+### #打包发布 #Flutter
+
+- [临时 Flutter SDK 隔离打包流程](./patterns/2026-05-19-临时flutter-sdk隔离打包流程.md)
+- [Flutter SDK 路径失效导致无法打包](./pitfalls/2026-05-19-flutter-sdk路径失效导致无法打包.md)
