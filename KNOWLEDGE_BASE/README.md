@@ -1,6 +1,6 @@
 # CryptoBox 项目经验库
 
-> 最后更新: 2026-05-19
+> 最后更新: 2026-05-20
 
 ## 项目概况
 
@@ -11,6 +11,7 @@
 
 ## 最近经验
 
+- 2026-05-20: [CryptoBox v2.0.0 推送 GitHub](./lessons/2026-05-20-cryptobox-v2.0.0推送github.md)
 - 2026-05-19: [CryptoBox v2.0.0 打包发布](./lessons/2026-05-19-cryptobox-v2.0.0打包发布.md)
 - 2026-05-19: [非现货资产支持口径优化](./lessons/2026-05-19-非现货资产支持口径优化.md)
 - 2026-05-02: [初始化 Git worktree 隔离工作树](./lessons/2026-05-02-初始化git-worktree隔离工作树.md)
@@ -28,5 +29,7 @@
 
 ### #打包发布 #Flutter
 
+- [Android 发布前远程同步与 APK 验收流程](./patterns/2026-05-20-android发布前远程同步与apk验收.md)
+- [Git 文件权限噪音污染发布提交](./pitfalls/2026-05-20-git文件权限噪音污染发布提交.md)
 - [临时 Flutter SDK 隔离打包流程](./patterns/2026-05-19-临时flutter-sdk隔离打包流程.md)
 - [Flutter SDK 路径失效导致无法打包](./pitfalls/2026-05-19-flutter-sdk路径失效导致无法打包.md)
